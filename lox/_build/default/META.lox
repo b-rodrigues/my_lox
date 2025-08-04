@@ -1,0 +1,6 @@
+description = ""
+requires = "ppx_deriving.runtime"
+archive(byte) = "lox.cma"
+archive(native) = "lox.cmxa"
+plugin(byte) = "lox.cma"
+plugin(native) = "lox.cmxs"

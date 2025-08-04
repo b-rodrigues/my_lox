@@ -1,4 +1,53 @@
 (lang dune 3.19)
 (name lox)
-(sections (lib .) (bin ../../bin))
-(files (lib (META dune-package opam)) (bin (lox)))
+(sections (lib .) (libexec .) (bin ../../bin))
+(files
+ (lib
+  (META
+   dune-package
+   lox.a
+   lox.cma
+   lox.cmi
+   lox.cmt
+   lox.cmx
+   lox.cmxa
+   lox.ml
+   lox__Scanner.cmi
+   lox__Scanner.cmt
+   lox__Scanner.cmx
+   lox__Token.cmi
+   lox__Token.cmt
+   lox__Token.cmx
+   opam
+   scanner.ml
+   token.ml))
+ (libexec (lox.cmxs))
+ (bin (lox)))
+(library
+ (name lox)
+ (kind normal)
+ (archives (byte lox.cma) (native lox.cmxa))
+ (plugins (byte lox.cma) (native lox.cmxs))
+ (native_archives lox.a)
+ (requires ppx_deriving.runtime)
+ (main_module_name Lox)
+ (modes byte native)
+ (modules
+  (wrapped
+   (group
+    (alias
+     (obj_name lox)
+     (visibility public)
+     (kind alias)
+     (source (path Lox) (impl (path lox.ml-gen))))
+    (name Lox)
+    (modules
+     (module
+      (obj_name lox__Scanner)
+      (visibility public)
+      (source (path Scanner) (impl (path scanner.ml))))
+     (module
+      (obj_name lox__Token)
+      (visibility public)
+      (source (path Token) (impl (path token.ml))))))
+   (wrapped true))))

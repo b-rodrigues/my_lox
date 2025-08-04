@@ -6,13 +6,14 @@ description:
 maintainer: ["Bruno Rodrigues <bruno@brodrigues.co>"]
 authors: ["Bruno Rodrigues <bruno@brodrigues.co>"]
 license: "EUPL"
-tags: ["add topics" "to describe" "your" "project"]
+tags: ["interpreter" "language" "lox" "crafting-interpreters"]
 homepage: "https://github.com/b-rodrigues/my_lox"
 doc: "https://url/to/documentation"
 bug-reports: "https://github.com/b-rodrigues/my_lox/issues"
 depends: [
-  "dune" {>= "3.19"}
   "ocaml"
+  "dune" {>= "3.19"}
+  "ppx_deriving"
   "odoc" {with-doc}
 ]
 build: [

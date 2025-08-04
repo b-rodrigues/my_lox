@@ -18,6 +18,8 @@ let
     ocaml
     ocaml-lsp
     ocamlformat
+    ppx_deriving
+    ppxlib
     utop
   ];
 
@@ -31,6 +33,7 @@ let
     LC_MEASUREMENT = "en_US.UTF-8";
 
     buildInputs = ocaml_packages ++ system_packages;
+
   };
 in
 {

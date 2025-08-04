@@ -19,8 +19,6 @@
  (name lox)
  (synopsis "Lox, but in Ocaml")
  (description "My attempt at building the toy language Lox from Crafting Interpreters using Ocaml")
- (depends ocaml)
+ (depends ocaml dune ppx_deriving)
  (tags
-  ("add topics" "to describe" your project)))
-
-; See the complete stanza docs at https://dune.readthedocs.io/en/stable/reference/dune-project/index.html
+  ("interpreter" "language" "lox" "crafting-interpreters")))

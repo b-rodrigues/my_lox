@@ -1,2 +1,2 @@
 (library
- (name lox))
+ (name lox_lib))
