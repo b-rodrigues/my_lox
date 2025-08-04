@@ -1,0 +1,26 @@
+(lang dune 3.19)
+
+(name lox)
+
+(generate_opam_files true)
+
+(source
+ (github b-rodrigues/my_lox))
+
+(authors "Bruno Rodrigues <bruno@brodrigues.co>")
+
+(maintainers "Bruno Rodrigues <bruno@brodrigues.co>")
+
+(license EUPL)
+
+(documentation https://url/to/documentation)
+
+(package
+ (name lox)
+ (synopsis "Lox, but in Ocaml")
+ (description "My attempt at building the toy language Lox from Crafting Interpreters using Ocaml")
+ (depends ocaml)
+ (tags
+  ("add topics" "to describe" your project)))
+
+; See the complete stanza docs at https://dune.readthedocs.io/en/stable/reference/dune-project/index.html
