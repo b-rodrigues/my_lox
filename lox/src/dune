@@ -1,7 +1,7 @@
 (library
  (name lox)
  (public_name lox)
- (modules token scanner) ;; list all your library modules here, add more as you create them
+ (modules token scanner ast parser interpreter) ;; list all your library modules here, add more as you create them
  (preprocess (pps ppx_deriving.show ppx_deriving.eq))
 )
 

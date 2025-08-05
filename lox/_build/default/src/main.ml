@@ -3,11 +3,18 @@ open Lox
 let run source =
   match Scanner.scan source with
   | Ok tokens ->
-      List.iter (fun token ->
-        Printf.printf "%s\n" (Token.show_token token)
-      ) tokens
+      (match Parser.parse tokens with
+       | Ok statements ->
+           (match Interpreter.interpret statements with
+            | Ok () -> ()
+            | Error msg ->
+                Printf.eprintf "Runtime error: %s\n" msg;
+                exit 1)
+       | Error msg ->
+           Printf.eprintf "Parse error: %s\n" msg;
+           exit 1)
   | Error msg ->
-      Printf.eprintf "Error: %s\n" msg;
+      Printf.eprintf "Scan error: %s\n" msg;
       exit 1
 
 let run_file filename =
@@ -19,7 +26,7 @@ let run_file filename =
 let run_prompt () =
   let rec loop () =
     Printf.printf "> ";
-    flush stdout ;
+    flush stdout;
     match input_line stdin with
     | exception End_of_file -> Printf.printf "\n"
     | line ->

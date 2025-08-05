@@ -4,7 +4,9 @@
 (files
  (lib
   (META
+   ast.ml
    dune-package
+   interpreter.ml
    lox.a
    lox.cma
    lox.cmi
@@ -12,6 +14,15 @@
    lox.cmx
    lox.cmxa
    lox.ml
+   lox__Ast.cmi
+   lox__Ast.cmt
+   lox__Ast.cmx
+   lox__Interpreter.cmi
+   lox__Interpreter.cmt
+   lox__Interpreter.cmx
+   lox__Parser.cmi
+   lox__Parser.cmt
+   lox__Parser.cmx
    lox__Scanner.cmi
    lox__Scanner.cmt
    lox__Scanner.cmx
@@ -19,6 +30,7 @@
    lox__Token.cmt
    lox__Token.cmx
    opam
+   parser.ml
    scanner.ml
    token.ml))
  (libexec (lox.cmxs))
@@ -42,6 +54,18 @@
      (source (path Lox) (impl (path lox.ml-gen))))
     (name Lox)
     (modules
+     (module
+      (obj_name lox__Ast)
+      (visibility public)
+      (source (path Ast) (impl (path ast.ml))))
+     (module
+      (obj_name lox__Interpreter)
+      (visibility public)
+      (source (path Interpreter) (impl (path interpreter.ml))))
+     (module
+      (obj_name lox__Parser)
+      (visibility public)
+      (source (path Parser) (impl (path parser.ml))))
      (module
       (obj_name lox__Scanner)
       (visibility public)
