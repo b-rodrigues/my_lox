@@ -4,12 +4,20 @@ open Lox
  * MODIFIED: This function now returns a boolean indicating success (true) or failure (false).
  * It no longer calls `exit` directly.
  *)
-let run source =
+let run source is_repl =
   try
     match Scanner.scan source with
     | Ok tokens -> (
         match Parser.parse tokens with
         | Ok statements -> (
+            let statements =
+              if is_repl then
+                match statements with
+                | [Ast.Expression expr] -> [Ast.Print expr]
+                | _ -> statements
+              else
+                statements
+            in
             (* Assuming an interpreter.ml file with a similar structure *)
             match Interpreter.interpret statements with
             | Ok () -> true (* Success *)
@@ -42,7 +50,7 @@ let run_file filename =
   let ic = open_in filename in
   let source = really_input_string ic (in_channel_length ic) in
   close_in ic;
-  if not (run source) then exit 65 (* Standard exit code for data error *)
+  if not (run source false) then exit 65 (* Standard exit code for data error *)
 
 
 (*
@@ -56,7 +64,7 @@ let run_prompt () =
     match input_line stdin with
     | exception End_of_file -> Printf.printf "\n"
     | line ->
-        let _ = run line in (* We don't care about the result, just that it ran *)
+        let _ = run line true in (* We don't care about the result, just that it ran *)
         loop ()
   in
   loop ()
