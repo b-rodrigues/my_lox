@@ -13,6 +13,7 @@ bug-reports: "https://github.com/b-rodrigues/my_lox/issues"
 depends: [
   "ocaml"
   "dune" {>= "3.19"}
+  "linenoise"
   "ppx_deriving"
   "odoc" {with-doc}
 ]

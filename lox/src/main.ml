@@ -59,12 +59,11 @@ let run_file filename =
  *)
 let run_prompt () =
   let rec loop () =
-    Printf.printf "> ";
-    flush stdout;
-    match input_line stdin with
-    | exception End_of_file -> Printf.printf "\n"
-    | line ->
-        let _ = run line true in (* We don't care about the result, just that it ran *)
+    match LNoise.linenoise "> " with
+    | None -> print_endline ""; () (* End of input *)
+    | Some line ->
+        ignore (LNoise.history_add line);  (* Silently discard *)
+        ignore (run line true);
         loop ()
   in
   loop ()

@@ -9,5 +9,5 @@
  (name main)
  (public_name lox)
  (modules main)
- (libraries lox)
+ (libraries lox linenoise)
 )

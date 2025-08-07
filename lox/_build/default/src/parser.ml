@@ -45,8 +45,36 @@ let consume parser token_type message =
     let current_token = peek parser in
     raise (ParseError (message, current_token.line))
 
-(* Forward declarations for recursive parsing *)
-let rec expression parser = equality parser
+(* --- MODIFIED EXPRESSION PARSING HIERARCHY --- *)
+
+let rec expression parser = logic_or parser (* Entry point is now logic_or *)
+
+and logic_or parser =
+  let rec loop parser left =
+    if match_tokens parser [OR] then
+      let parser = advance parser in
+      let operator = previous parser in
+      let (parser, right) = logic_and parser in (* Right-hand side is logic_and *)
+      loop parser (Binary (left, operator, right))
+    else
+      (parser, left)
+  in
+  let (parser, expr) = logic_and parser in
+  loop parser expr
+
+and logic_and parser =
+  let rec loop parser left =
+    if match_tokens parser [AND] then
+      let parser = advance parser in
+      let operator = previous parser in
+      let (parser, right) = equality parser in (* Right-hand side is equality *)
+      loop parser (Binary (left, operator, right))
+    else
+      (parser, left)
+  in
+  let (parser, expr) = equality parser in
+  loop parser expr
+
 and equality parser =
   let rec loop parser left =
     if match_tokens parser [BANG_EQUAL; EQUAL_EQUAL] then
@@ -135,7 +163,8 @@ and primary parser =
     let current_token = peek parser in
     raise (ParseError ("Expect expression.", current_token.line))
 
-(* Statement parsing *)
+(* --- UNMODIFIED STATEMENT PARSING --- *)
+
 let print_statement parser =
   let (parser, value) = expression parser in
   let (parser, _) = consume parser SEMICOLON "Expect ';' after value." in
@@ -144,7 +173,7 @@ let print_statement parser =
 let var_declaration parser =
   let (parser, name_token) = consume parser IDENTIFIER "Expect variable name." in
   let name = name_token.lexeme in
-  let (parser, init_expr) =  (* Changed from 'initializer' to 'init_expr' *)
+  let (parser, init_expr) =
     if match_tokens parser [EQUAL] then
       let parser = advance parser in
       let (parser, expr) = expression parser in
@@ -153,7 +182,7 @@ let var_declaration parser =
       (parser, None)
   in
   let (parser, _) = consume parser SEMICOLON "Expect ';' after variable declaration." in
-  (parser, Var (name, init_expr))  (* Updated here too *)
+  (parser, Var (name, init_expr))
 
 let expression_statement parser =
   let (parser, expr) = expression parser in

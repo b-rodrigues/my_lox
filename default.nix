@@ -2,8 +2,6 @@
 let
   pkgs = import (fetchTarball "https://github.com/rstats-on-nix/nixpkgs/archive/2025-08-04.tar.gz") {};
 
-  ocaml_env = pkgs.ocamlPackages;
-
   system_packages = builtins.attrValues {
     inherit (pkgs)
       glibcLocales
@@ -11,9 +9,10 @@ let
       nix;
   };
 
-  ocaml_packages = with ocaml_env; [
+  ocaml_packages = with pkgs.ocamlPackages; [
     dune_3
     findlib
+    linenoise
     merlin
     ocaml
     ocaml-lsp
@@ -33,7 +32,6 @@ let
     LC_MEASUREMENT = "en_US.UTF-8";
 
     buildInputs = ocaml_packages ++ system_packages;
-
   };
 in
 {

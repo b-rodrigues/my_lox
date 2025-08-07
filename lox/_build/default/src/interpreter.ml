@@ -23,13 +23,13 @@ module Environment = struct
   let get env name =
     match Hashtbl.find_opt env name with
     | Some value -> value
-    | None -> raise (RuntimeError ("Undefined variable '" ^ name ^ "'.", 1))
+    | None -> raise (RuntimeError ("Undefined variable '" ^ name ^ "'.", 1)) (* Line number is a placeholder *)
 
   let assign env name value =
     if Hashtbl.mem env name then
       Hashtbl.replace env name value
     else
-      raise (RuntimeError ("Undefined variable '" ^ name ^ "'.", 1))
+      raise (RuntimeError ("Undefined variable '" ^ name ^ "'.", 1)) (* Line number is a placeholder *)
 end
 
 (* Convert literals to values *)
@@ -41,7 +41,7 @@ let literal_to_value = function
 
 (* Convert values to strings for printing *)
 let value_to_string = function
-  | Val_number n -> 
+  | Val_number n ->
       if n = Float.round n then
         Printf.sprintf "%.0f" n
       else
@@ -60,6 +60,7 @@ let is_truthy = function
 let is_equal v1 v2 =
   match (v1, v2) with
   | (Val_nil, Val_nil) -> true
+  | (Val_nil, _) | (_, Val_nil) -> false
   | (Val_bool b1, Val_bool b2) -> b1 = b2
   | (Val_number n1, Val_number n2) -> n1 = n2
   | (Val_string s1, Val_string s2) -> s1 = s2
@@ -82,51 +83,65 @@ let rec evaluate env = function
             | _ -> raise (RuntimeError ("Operand must be a number.", operator.line)))
        | BANG -> Val_bool (not (is_truthy right_val))
        | _ -> raise (RuntimeError ("Unknown unary operator.", operator.line)))
-  
+
+  (* --- MODIFIED: Handle binary expressions --- *)
   | Binary (left, operator, right) ->
-      let left_val = evaluate env left in
-      let right_val = evaluate env right in
       (match operator.token_type with
-       | MINUS ->
-           (match (left_val, right_val) with
-            | (Val_number l, Val_number r) -> Val_number (l -. r)
-            | _ -> raise (RuntimeError ("Operands must be numbers.", operator.line)))
-       | PLUS ->
-           (match (left_val, right_val) with
-            | (Val_number l, Val_number r) -> Val_number (l +. r)
-            | (Val_string l, Val_string r) -> Val_string (l ^ r)
-            | _ -> raise (RuntimeError ("Operands must be two numbers or two strings.", operator.line)))
-       | SLASH ->
-           (match (left_val, right_val) with
-            | (Val_number l, Val_number r) -> 
-                if r = 0.0 then
-                  raise (RuntimeError ("Division by zero.", operator.line))
-                else
-                  Val_number (l /. r)
-            | _ -> raise (RuntimeError ("Operands must be numbers.", operator.line)))
-       | STAR ->
-           (match (left_val, right_val) with
-            | (Val_number l, Val_number r) -> Val_number (l *. r)
-            | _ -> raise (RuntimeError ("Operands must be numbers.", operator.line)))
-       | GREATER ->
-           (match (left_val, right_val) with
-            | (Val_number l, Val_number r) -> Val_bool (l > r)
-            | _ -> raise (RuntimeError ("Operands must be numbers.", operator.line)))
-       | GREATER_EQUAL ->
-           (match (left_val, right_val) with
-            | (Val_number l, Val_number r) -> Val_bool (l >= r)
-            | _ -> raise (RuntimeError ("Operands must be numbers.", operator.line)))
-       | LESS ->
-           (match (left_val, right_val) with
-            | (Val_number l, Val_number r) -> Val_bool (l < r)
-            | _ -> raise (RuntimeError ("Operands must be numbers.", operator.line)))
-       | LESS_EQUAL ->
-           (match (left_val, right_val) with
-            | (Val_number l, Val_number r) -> Val_bool (l <= r)
-            | _ -> raise (RuntimeError ("Operands must be numbers.", operator.line)))
-       | BANG_EQUAL -> Val_bool (not (is_equal left_val right_val))
-       | EQUAL_EQUAL -> Val_bool (is_equal left_val right_val)
-       | _ -> raise (RuntimeError ("Unknown binary operator.", operator.line)))
+       (* Special cases for logical operators with short-circuiting *)
+       | OR ->
+           let left_val = evaluate env left in
+           if is_truthy left_val then left_val
+           else evaluate env right
+       | AND ->
+           let left_val = evaluate env left in
+           if not (is_truthy left_val) then left_val
+           else evaluate env right
+
+       (* Default case for all other binary operators (eager evaluation) *)
+       | _ ->
+           let left_val = evaluate env left in
+           let right_val = evaluate env right in
+           (match operator.token_type with
+            | MINUS ->
+                (match (left_val, right_val) with
+                 | (Val_number l, Val_number r) -> Val_number (l -. r)
+                 | _ -> raise (RuntimeError ("Operands must be numbers.", operator.line)))
+            | PLUS ->
+                (match (left_val, right_val) with
+                 | (Val_number l, Val_number r) -> Val_number (l +. r)
+                 | (Val_string l, Val_string r) -> Val_string (l ^ r)
+                 | _ -> raise (RuntimeError ("Operands must be two numbers or two strings.", operator.line)))
+            | SLASH ->
+                (match (left_val, right_val) with
+                 | (Val_number l, Val_number r) ->
+                     if r = 0.0 then
+                       raise (RuntimeError ("Division by zero.", operator.line))
+                     else
+                       Val_number (l /. r)
+                 | _ -> raise (RuntimeError ("Operands must be numbers.", operator.line)))
+            | STAR ->
+                (match (left_val, right_val) with
+                 | (Val_number l, Val_number r) -> Val_number (l *. r)
+                 | _ -> raise (RuntimeError ("Operands must be numbers.", operator.line)))
+            | GREATER ->
+                (match (left_val, right_val) with
+                 | (Val_number l, Val_number r) -> Val_bool (l > r)
+                 | _ -> raise (RuntimeError ("Operands must be numbers.", operator.line)))
+            | GREATER_EQUAL ->
+                (match (left_val, right_val) with
+                 | (Val_number l, Val_number r) -> Val_bool (l >= r)
+                 | _ -> raise (RuntimeError ("Operands must be numbers.", operator.line)))
+            | LESS ->
+                (match (left_val, right_val) with
+                 | (Val_number l, Val_number r) -> Val_bool (l < r)
+                 | _ -> raise (RuntimeError ("Operands must be numbers.", operator.line)))
+            | LESS_EQUAL ->
+                (match (left_val, right_val) with
+                 | (Val_number l, Val_number r) -> Val_bool (l <= r)
+                 | _ -> raise (RuntimeError ("Operands must be numbers.", operator.line)))
+            | BANG_EQUAL -> Val_bool (not (is_equal left_val right_val))
+            | EQUAL_EQUAL -> Val_bool (is_equal left_val right_val)
+            | _ -> raise (RuntimeError ("Unknown binary operator.", operator.line))))
 
 (* Execute statements *)
 let execute env = function
