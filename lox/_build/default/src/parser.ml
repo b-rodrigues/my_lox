@@ -85,6 +85,20 @@ and statement parser =
     in
     (parser, If (cond, then_b, else_b))
 
+  else if match_tokens parser [WHILE] then
+    let parser = advance parser in
+    let (parser, _) = consume parser LEFT_PAREN  "Expect '(' after 'while'." in
+    let (parser, cond) = expression parser in
+    let (parser, _) = consume parser RIGHT_PAREN "Expect ')' after 'while' condition." in
+    (* loop body: either a block or a single statement *)
+    let (parser, body) =
+      if check parser LEFT_BRACE then
+        let parser = advance parser in block parser
+      else
+        statement parser
+    in
+    (parser, While (cond, body))
+
   else if match_tokens parser [PRINT] then
     let parser = advance parser in
     let (parser, value) = expression parser in
@@ -114,7 +128,7 @@ and var_declaration parser =
   let (parser, _) = consume parser SEMICOLON "Expect ';' after variable declaration." in
   (parser, Var (name, init_expr))
 
-and expression parser = logic_or parser
+and expression parser = assignment parser
 
 and logic_or parser =
   let rec loop parser left =
@@ -128,6 +142,19 @@ and logic_or parser =
   in
   let (parser, expr) = logic_and parser in
   loop parser expr
+
+and assignment parser =
+  let (parser, lhs) = logic_or parser in
+  if match_tokens parser [EQUAL] then
+    let parser = advance parser in
+    let (parser, rhs) = assignment parser in
+    (match lhs with
+     | Variable name -> (parser, Assign (name, rhs))
+     | _ ->
+         let t = peek parser in
+         raise (ParseError ("Invalid assignment target.", t.line)))
+  else
+    (parser, lhs)
 
 and logic_and parser =
   let rec loop parser left =

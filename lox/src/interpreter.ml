@@ -54,6 +54,11 @@ let is_equal v1 v2 =
   | _ -> false
 
 let rec evaluate env = function
+  | Assign (name, expr) ->
+      let value = evaluate env expr in
+      Environment.assign env name value;
+      value
+
   | Literal lit ->
       literal_to_value lit
 
@@ -152,6 +157,12 @@ let rec execute env = function
 
   | Block stmts ->
       List.iter (execute env) stmts
+
+  | While (cond, body) ->
+      (* as long as cond is truthy, execute body *)
+      while is_truthy (evaluate env cond) do
+        execute env body
+      done
 
 let global_env = Environment.create ()
 
