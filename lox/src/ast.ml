@@ -1,15 +1,17 @@
-(* Expression types *)
-type expr =
+type call_arg =
+  | Arg_pos of expr
+  | Arg_named of string * expr * int  (* name, value, line *)
+
+and expr =
   | Binary of expr * Token.token * expr
   | Grouping of expr
   | Literal of Token.literal
   | Unary of Token.token * expr
   | Variable of string * int option * int          (* name, resolved depth, line *)
   | Assign of string * expr * int option * int     (* name, value, resolved depth, line *)
-  | Call of expr * Token.token * expr list
+  | Call of expr * Token.token * call_arg list
 [@@deriving show]
 
-(* Statement types *)
 type stmt =
   | Expression of expr
   | Print of expr

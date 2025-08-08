@@ -1,7 +1,5 @@
 open Lox
 
-(* Run source string; is_repl indicates REPL vs file.
-   Returns true on success, false on error. *)
 let run source is_repl =
   try
     match Scanner.scan source with
@@ -46,14 +44,12 @@ let run source is_repl =
       flush stderr;
       false
 
-(* Run a file, exiting with code on error *)
 let run_file filename =
   let ic = open_in filename in
   let source = really_input_string ic (in_channel_length ic) in
   close_in ic;
   if not (run source false) then exit 65
 
-(* Read lines until braces balance, then return full source *)
 let run_prompt () =
   let read_until_balanced first_prompt cont_prompt =
     let buf = Buffer.create 256 in
@@ -83,7 +79,6 @@ let run_prompt () =
   in
   loop ()
 
-(* Entry point *)
 let () =
   Builtins.register_all Interpreter.global_env;
   match Sys.argv with

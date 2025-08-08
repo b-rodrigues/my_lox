@@ -1,16 +1,28 @@
-# Lox (OCaml) — an interpreter with resolver, closures, and a few niceties
+# Lox (OCaml) — an interpreter with resolver, closures, and keyword args
 
-This repository contains a Lox interpreter written in OCaml with 100% LLM generated code. It broadly follows the Crafting Interpreters language (expressions, statements, variables, control flow, functions, closures), with some additions:
-- A resolver pass that performs lexical resolution before execution for faster lookups and better diagnostics.
-- A small set of built-ins, currently including a clock function with simple “named argument” support for native functions.
+This repository contains a Lox interpreter written in OCaml. It broadly follows
+Crafting Interpreters (expressions, statements, variables, control flow,
+functions, closures) with some additions:
+
+- A resolver pass that performs lexical resolution before execution for faster
+  lookups and better diagnostics.
+
+- Keyword (named) arguments for both user-defined and native functions.
+
+
+- A small set of built-ins, currently including a `clock` function.
 
 ## Features
 
 - Lexical scoping with closures
-- Variables, blocks, if/else, while, for (as syntactic sugar), function declarations and calls, return
-- Early errors from the resolver (e.g., “can’t read a local variable in its own initializer”, “return outside function”)
-- Built-ins (native functions) registered at startup
-  - clock(time = "unix" | "human")
+- Variables, blocks, if/else, while, for (as syntactic sugar), function
+  declarations and calls, return
+- Early errors from the resolver:
+  - “can’t read a local variable in its own initializer”
+  - “return outside function”
+- Named arguments inside calls: `f(x = 1, y = 2)`; rule: positional args cannot follow named args
+- Built-ins registered at startup
+  - `clock(time = "unix" | "human")`
 
 ## Quick start (with Nix shell)
 
@@ -18,25 +30,21 @@ Prerequisites:
 - Nix installed
 
 Enter the Nix shell (provides OCaml, dune, and dependencies):
-
 ```bash
 nix-shell
 ```
 
 Build:
-
 ```bash
-cd src/ && dune build
+dune build
 ```
 
 Run the REPL:
-
 ```bash
-cd src/ && dune exec lox
+dune exec lox
 ```
 
 Run a script:
-
 ```bash
 dune exec lox -- path/to/script.lox
 ```
@@ -50,54 +58,52 @@ Notes:
 - src/
   - token.ml, scanner.ml — tokenize input
   - ast.ml — AST types (expressions and statements)
-  - parser.ml — parses tokens into AST
+  - parser.ml — parses tokens into AST (supports keyword args)
   - resolver.ml — pre-execution scope resolution (computes lexical distances, validates some rules)
   - interpreter.ml — evaluates the resolved AST
-  - builtins.ml — registration of native functions (e.g., clock)
+  - builtins.ml — registration of native functions (e.g., `clock`)
   - main.ml — CLI entry point and REPL
+  - dune — dune project definition
 
 ## Built-ins
 
-- clock(time = "unix" | "human")
-  - time = "unix" returns a number (seconds since epoch)
-  - time = "human" returns a formatted string YYYY-MM-DD HH:MM:SS
-  - Default is "unix" if omitted.
+- `clock(time = "unix" | "human")`
+  - `time = "unix"` returns a number (seconds since epoch)
+  - `time = "human"` returns a formatted string `YYYY-MM-DD HH:MM:SS`
+  - Default is `"unix"` if omitted.
 
 Examples:
-
 ```lox
 print clock();                    // e.g., 1723123456
 print clock(time = "unix");       // same as above
 print clock(time = "human");      // e.g., 2025-08-08 15:43:05
 ```
 
-Important: “named arguments” are only recognized for native functions. For user-defined functions, using an assignment expression as an argument will actually assign to that variable.
-
 ## Language basics
 
 Statements:
-- Expression statement: expr;
-- Print statement: print expr;
-- Variable declaration: var name = initializer?;
-- Block: { statement* }
-- If: if (cond) statement else statement?
-- While: while (cond) statement
-- For: for (init?; cond?; increment?) statement    // parsed into a while loop
-- Function declaration: fun name(params) { body }
-- Return: return expr?;
+- Expression statement: `expr;`
+- Print statement: `print expr;`
+- Variable declaration: `var name = initializer?;`
+- Block: `{ statement* }`
+- If: `if (cond) statement else statement?`
+- While: `while (cond) statement`
+- For: `for (init?; cond?; increment?) statement` (parsed into a `while` loop)
+- Function declaration: `fun name(params) { body }`
+- Return: `return expr?;`
 
 Expressions:
-- Literals: numbers, strings, true, false, nil
-- Grouping: (expr)
-- Unary: -expr, !expr
-- Binary: +, -, *, /, <, <=, >, >=, ==, !=, and, or
-- Variable and assignment: name, name = expr
-- Call: callee(arg1, arg2, ...)
+- Literals: numbers, strings, `true`, `false`, `nil`
+- Grouping: `(expr)`
+- Unary: `-expr`, `!expr`
+- Binary: `+`, `-`, `*`, `/`, `<`, `<=`, `>`, `>=`, `==`, `!=`, `and`, `or`
+- Variable and assignment: `name`, `name = expr`
+- Call: `callee(arg1, arg2, ...)`
+  - Named args: `callee(x = 1, y = 2)`; positional args cannot follow named args.
 
 ### Syntax examples
 
 Hello world and variables:
-
 ```lox
 print "Hello, world!";
 var a = 41;
@@ -137,7 +143,7 @@ for (var i = 0; i < 3; i = i + 1) {
 }
 ```
 
-Functions and closures:
+Functions, closures, and named args:
 ```lox
 fun makeAdder(n) {
   fun add(x) {
@@ -148,6 +154,10 @@ fun makeAdder(n) {
 
 var add2 = makeAdder(2);
 print add2(40); // 42
+
+fun greet(name, punct) { print name + punct; }
+greet(name = "Alice", punct = "!");
+greet("Bob", punct = ".");
 ```
 
 Resolver-detected errors (caught before running):
@@ -165,31 +175,31 @@ return 1;          // Error: Can't return from top-level code.
 ## Hacking on it
 
 Inside the Nix shell:
-- Build: dune build
-- Run REPL: dune exec lox
-- Run a file: dune exec lox -- examples/hello.lox
+- Build: `dune build`
+- Run REPL: `dune exec lox`
+- Run a file: `dune exec lox -- examples/hello.lox`
 
 Modifying the interpreter:
 - Add language features by extending:
-  - ast.ml (add node types)
-  - parser.ml (recognize new syntax)
-  - resolver.ml (track scope rules / distances)
-  - interpreter.ml (evaluate new nodes)
-- Add or change native functions in src/builtins.ml. Register new natives in Builtins.register_all.
+  - `ast.ml` (add node types)
+  - `parser.ml` (recognize new syntax)
+  - `resolver.ml` (track scope rules / distances)
+  - `interpreter.ml` (evaluate new nodes)
+- Add or change native functions in `src/builtins.ml`. Register new natives in `Builtins.register_all`.
 
 Troubleshooting:
-- Resolver errors happen before execution and will reference a line number in your source.
+- Resolver errors happen before execution and reference a line number in your source.
 - If you see “Undefined variable 'x'.” at runtime, it’s typically a genuine runtime lookup (e.g., referencing an undeclared global or after its scope ended).
 
 ## Roadmap ideas
 
 - Arrays and maps (with indexing and literals)
-- Proper keyword/named arguments in the language syntax
-- break/continue for loops
+- Default parameter values and better diagnostics for missing named parameters
+- `break`/`continue` for loops
 - Modules/imports
 - More built-ins (math, io, time, data utilities)
 - Classes/this/super (Crafting Interpreters OOP chapter)
 
 ## License
 
-EUPL v 1.2.
+TBD.

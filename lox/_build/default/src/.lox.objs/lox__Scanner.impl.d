@@ -1,1 +1,1 @@
-src/scanner.pp.ml: Float List Printf String Token
+src/scanner.pp.ml: Hashtbl List Printf String Token

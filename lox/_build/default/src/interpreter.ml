@@ -1,7 +1,6 @@
 open Token
 open Ast
 
-(* Mutually recursive runtime types and environment *)
 type env = {
   values    : (string, value) Hashtbl.t;
   enclosing : env option;
@@ -21,7 +20,7 @@ and lox_function = {
 }
 and native_fn = {
   name  : string;
-  arity : int;  (* positional args *)
+  arity : int;  (* positional args required *)
   call  : line:int -> value list -> (string * value) list -> value;
 }
 
@@ -189,17 +188,65 @@ let rec evaluate env = function
                raise (RuntimeError ("Unknown binary operator.", operator.line))
       )
 
-  | Call (callee_expr, paren, arg_exprs) ->
+  | Call (callee_expr, paren, args) ->
       let callee = evaluate env callee_expr in
+      let eval_args args =
+        let rec loop args pos_acc named_acc seen_named =
+          match args with
+          | [] -> (List.rev pos_acc, List.rev named_acc)
+          | Arg_pos e :: rest ->
+              if seen_named then
+                raise (RuntimeError ("Positional arguments cannot follow named arguments.", paren.line));
+              let v = evaluate env e in
+              loop rest (v :: pos_acc) named_acc seen_named
+          | Arg_named (name, e, _line) :: rest ->
+              let v = evaluate env e in
+              if List.exists (fun (n, _) -> n = name) named_acc then
+                raise (RuntimeError (Printf.sprintf "Duplicate named argument '%s'." name, paren.line));
+              loop rest pos_acc ((name, v) :: named_acc) true
+        in
+        loop args [] [] false
+      in
       (match callee with
        | Val_function fn ->
-           let args = List.map (evaluate env) arg_exprs in
-           let expected = List.length fn.params in
-           let got = List.length args in
-           if expected <> got then
-             raise (RuntimeError (Printf.sprintf "Expected %d arguments but got %d." expected got, paren.line));
+           let (pos_args, named_args) = eval_args args in
+           let param_count = List.length fn.params in
+           let pos_count = List.length pos_args in
+           let named_count = List.length named_args in
+           if pos_count > param_count then
+             raise (RuntimeError (Printf.sprintf "Expected at most %d positional arguments but got %d." param_count pos_count, paren.line));
+
+           let idx_of =
+             let tbl = Hashtbl.create 16 in
+             List.iteri (fun i p -> Hashtbl.replace tbl p i) fn.params;
+             fun name -> Hashtbl.find_opt tbl name
+           in
+
+           List.iter
+             (fun (name, _v) ->
+               match idx_of name with
+               | None ->
+                   raise (RuntimeError (Printf.sprintf "Unknown parameter '%s'." name, paren.line))
+               | Some i ->
+                   if i < pos_count then
+                     raise (RuntimeError (Printf.sprintf "Parameter '%s' already supplied by position." name, paren.line)))
+             named_args;
+
+           if pos_count + named_count <> param_count then
+             raise (RuntimeError (Printf.sprintf "Expected %d arguments but got %d." param_count (pos_count + named_count), paren.line));
+
            let call_env = Environment.create ~enclosing:fn.closure () in
-           List.iter2 (fun param arg -> Environment.define call_env param arg) fn.params args;
+           (* Bind positional *)
+           List.iteri
+             (fun i v ->
+               let param = List.nth fn.params i in
+               Environment.define call_env param v)
+             pos_args;
+           (* Bind named *)
+           List.iter
+             (fun (name, v) -> Environment.define call_env name v)
+             named_args;
+
            (try
               List.iter (execute call_env) fn.body;
               Val_nil
@@ -207,23 +254,7 @@ let rec evaluate env = function
             | Return v -> v)
 
        | Val_native nf ->
-           let (pos_args_rev, named_args_rev) =
-             List.fold_left
-               (fun (pos, named) arg_e ->
-                  match arg_e with
-                  | Assign (name, rhs, _, _) ->
-                      let v = evaluate env rhs in
-                      if List.exists (fun (n, _) -> n = name) named then
-                        raise (RuntimeError (Printf.sprintf "Duplicate named argument '%s'." name, paren.line));
-                      (pos, (name, v) :: named)
-                  | _ ->
-                      let v = evaluate env arg_e in
-                      (v :: pos, named))
-               ([], [])
-               arg_exprs
-           in
-           let pos_args = List.rev pos_args_rev in
-           let named_args = List.rev named_args_rev in
+           let (pos_args, named_args) = eval_args args in
            let got = List.length pos_args in
            if got <> nf.arity then
              raise (RuntimeError (Printf.sprintf "Expected %d positional arguments but got %d." nf.arity got, paren.line));

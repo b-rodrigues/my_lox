@@ -20,6 +20,11 @@ let peek parser =
   | Some t -> t
   | None   -> failwith "No more tokens"
 
+let peek_next parser =
+  match List.nth_opt parser.tokens (parser.current + 1) with
+  | Some t -> t
+  | None -> peek parser
+
 let previous parser =
   match List.nth_opt parser.tokens (parser.current - 1) with
   | Some t -> t
@@ -40,7 +45,8 @@ let match_tokens parser types =
 
 let consume parser token_type message =
   if check parser token_type then
-    (advance parser, peek parser)
+    let tok = peek parser in
+    (advance parser, tok)
   else
     let t = peek parser in
     raise (ParseError (message, t.line))
@@ -137,7 +143,12 @@ and statement parser =
     let (parser, _)    = consume parser LEFT_PAREN  "Expect '(' after 'while'." in
     let (parser, cond) = expression parser in
     let (parser, _)    = consume parser RIGHT_PAREN "Expect ')' after while condition." in
-    let (parser, body) = if check parser LEFT_BRACE then let p = advance parser in block p else statement parser in
+    let (parser, body) =
+      if check parser LEFT_BRACE then
+        let p = advance parser in block p
+      else
+        statement parser
+    in
     (parser, While (cond, body))
 
   else if match_tokens parser [RETURN] then
@@ -311,20 +322,45 @@ and call parser =
   let rec loop parser expr =
     if match_tokens parser [LEFT_PAREN] then
       let parser = advance parser in
-      let rec args_loop parser acc =
+      (* Parse positional and named arguments:
+         - Arg_pos: any expression
+         - Arg_named: IDENTIFIER '=' expression (detected via lookahead)
+         Rule: positional arguments may not follow named arguments. *)
+      let rec args_loop parser acc seen_named =
         if check parser RIGHT_PAREN then (parser, List.rev acc)
         else
-          let (p, arg) = expression parser in
-          let acc = arg :: acc in
-          if match_tokens p [COMMA] then
-            args_loop (advance p) acc
+          let t1 = peek parser in
+          let t2 = peek_next parser in
+          if t1.token_type = IDENTIFIER && t2.token_type = EQUAL then
+            (* named argument: name = expr *)
+            let parser = advance parser in
+            let name_tok = previous parser in
+            let name = name_tok.lexeme in
+            let parser = advance parser (* consume '=' *) in
+            let (parser, value_expr) = expression parser in
+            let acc = (Arg_named (name, value_expr, name_tok.line)) :: acc in
+            let seen_named = true in
+            if match_tokens parser [COMMA] then
+              args_loop (advance parser) acc seen_named
+            else
+              (parser, List.rev acc)
           else
-            (p, List.rev acc)
+            (* positional argument *)
+            let (parser, arg_expr) = expression parser in
+            if seen_named then
+              let t = peek parser in
+              raise (ParseError ("Positional arguments cannot follow named arguments.", t.line))
+            else
+              let acc = (Arg_pos arg_expr) :: acc in
+              if match_tokens parser [COMMA] then
+                args_loop (advance parser) acc seen_named
+              else
+                (parser, List.rev acc)
       in
-      let (parser, args) = args_loop parser [] in
+      let (parser, args) = args_loop parser [] false in
       let (parser, _) = consume parser RIGHT_PAREN "Expect ')' after arguments." in
       let paren = previous parser in
-      loop parser (Call (expr, paren, args))
+      loop parser (Call (callee, paren, args))
     else
       (parser, expr)
   in
@@ -338,7 +374,9 @@ and primary parser =
   else if match_tokens parser [NIL] then
     let parser = advance parser in (parser, Literal Lit_nil)
   else if match_tokens parser [NUMBER; STRING] then
-    let parser = advance parser in let token = previous parser in (parser, Literal (Option.get token.literal))
+    let parser = advance parser in
+    let token = previous parser in
+    (parser, Literal (Option.get token.literal))
   else if match_tokens parser [IDENTIFIER] then
     let parser = advance parser in
     let token = previous parser in

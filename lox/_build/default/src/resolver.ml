@@ -25,7 +25,7 @@ let pop_scope r =
 
 let declare r name line =
   match r.scopes with
-  | [] -> ()  (* global; nothing to track *)
+  | [] -> ()  (* global; nothing to track or already synthetic global *)
   | scope :: _ ->
       if Hashtbl.mem scope name then
         raise (ResolveError (Printf.sprintf "Variable '%s' already declared in this scope." name, line));
@@ -48,10 +48,10 @@ and resolve_stmt r = function
       define r name;
       Var (name, init_opt')
   | Block stmts ->
-      push_scope r;
-      let stmts' = resolve_stmts r stmts in
-      pop_scope r;
-      Block stmts'
+    push_scope r;
+    let stmts' = resolve_stmts r stmts in
+    pop_scope r;
+    Block stmts'
   | If (cond, then_b, else_b) ->
       let cond' = resolve_expr r cond in
       let then_b' = resolve_stmt r then_b in
@@ -62,10 +62,8 @@ and resolve_stmt r = function
       let body' = resolve_stmt r body in
       While (cond', body')
   | Fun (name, params, body) ->
-      (* Function name is bound in the enclosing scope *)
       declare r name 0;
       define r name;
-      (* Resolve function body in a new scope with params *)
       let enclosing = r.current_function in
       r.current_function <- FT_function;
       push_scope r;
@@ -87,7 +85,13 @@ and resolve_expr r = function
   | Binary (l, tok, rgt) -> Binary (resolve_expr r l, tok, resolve_expr r rgt)
   | Call (callee, tok, args) ->
       let callee' = resolve_expr r callee in
-      let args' = List.map (resolve_expr r) args in
+      let args' =
+        List.map
+          (function
+            | Arg_pos e -> Arg_pos (resolve_expr r e)
+            | Arg_named (name, e, line) -> Arg_named (name, resolve_expr r e, line))
+          args
+      in
       Call (callee', tok, args')
   | Variable (name, _, line) ->
       (* Error: reading a local variable in its own initializer *)
@@ -119,7 +123,7 @@ and resolve_local r name : int option =
 let resolve (stmts : stmt list) : (stmt list, string) result =
   try
     let r = create () in
-    (* Optional: track a synthetic global scope so top-level initializers are checked too *)
+    (* Track a synthetic global scope so top-level initializers are checked too *)
     push_scope r;
     let resolved = resolve_stmts r stmts in
     pop_scope r;
