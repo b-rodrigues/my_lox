@@ -202,4 +202,4 @@ Troubleshooting:
 
 ## License
 
-TBD.
+EUPL v1.2
