@@ -1,28 +1,51 @@
-(* lox/src/interpreter.ml *)
-
 open Token
 open Ast
 
-(* Runtime values *)
-type value =
+(* Mutually recursive runtime types and environment *)
+type env = {
+  values    : (string, value) Hashtbl.t;
+  enclosing : env option;
+}
+and value =
   | Val_number of float
   | Val_string of string
   | Val_bool   of bool
   | Val_nil
+  | Val_function of lox_function
+and lox_function = {
+  name    : string;
+  params  : string list;
+  body    : stmt list;
+  closure : env;
+}
 
 exception RuntimeError of string * int
+exception Return of value
 
 module Environment = struct
-  type t = (string, value) Hashtbl.t
-  let create () = Hashtbl.create 16
-  let define env name v = Hashtbl.replace env name v
-  let get env name =
-    match Hashtbl.find_opt env name with
+  type t = env
+
+  let create ?enclosing () : t =
+    { values = Hashtbl.create 16; enclosing }
+
+  let rec get (env : t) (name : string) : value =
+    match Hashtbl.find_opt env.values name with
     | Some v -> v
-    | None   -> raise (RuntimeError ("Undefined variable '" ^ name ^ "'.", 1))
-  let assign env name v =
-    if Hashtbl.mem env name then Hashtbl.replace env name v
-    else raise (RuntimeError ("Undefined variable '" ^ name ^ "'.", 1))
+    | None ->
+        (match env.enclosing with
+         | Some parent -> get parent name
+         | None -> raise (RuntimeError ("Undefined variable '" ^ name ^ "'.", 1)))
+
+  let define (env : t) (name : string) (v : value) : unit =
+    Hashtbl.replace env.values name v
+
+  let rec assign (env : t) (name : string) (v : value) : unit =
+    if Hashtbl.mem env.values name then
+      Hashtbl.replace env.values name v
+    else
+      match env.enclosing with
+      | Some parent -> assign parent name v
+      | None -> raise (RuntimeError ("Undefined variable '" ^ name ^ "'.", 1))
 end
 
 let literal_to_value = function
@@ -39,6 +62,7 @@ let value_to_string = function
   | Val_bool true -> "true"
   | Val_bool false-> "false"
   | Val_nil       -> "nil"
+  | Val_function fn -> Printf.sprintf "<fn %s>" fn.name
 
 let is_truthy = function
   | Val_bool false | Val_nil -> false
@@ -135,7 +159,27 @@ let rec evaluate env = function
                raise (RuntimeError ("Unknown binary operator.", operator.line))
       )
 
-let rec execute env = function
+  | Call (callee_expr, paren, arg_exprs) ->
+      let callee = evaluate env callee_expr in
+      let args = List.map (evaluate env) arg_exprs in
+      (match callee with
+       | Val_function fn ->
+           let expected = List.length fn.params in
+           let got = List.length args in
+           if expected <> got then
+             raise (RuntimeError (Printf.sprintf "Expected %d arguments but got %d." expected got, paren.line));
+           let call_env = Environment.create ~enclosing:fn.closure () in
+           List.iter2 (fun param arg -> Environment.define call_env param arg) fn.params args;
+           (try
+              List.iter (execute call_env) fn.body;
+              Val_nil
+            with
+            | Return v -> v)
+       | _ ->
+           raise (RuntimeError ("Can only call functions.", paren.line))
+      )
+
+and execute env = function
   | Expression expr ->
       let _ = evaluate env expr in
       ()
@@ -156,13 +200,26 @@ let rec execute env = function
         (match else_b with Some stmt -> execute env stmt | None -> ())
 
   | Block stmts ->
-      List.iter (execute env) stmts
+      let local = Environment.create ~enclosing:env () in
+      List.iter (execute local) stmts
 
   | While (cond, body) ->
-      (* as long as cond is truthy, execute body *)
       while is_truthy (evaluate env cond) do
         execute env body
       done
+
+  | Fun (name, params, body) ->
+      let fn = {
+        name;
+        params;
+        body;
+        closure = env;
+      } in
+      Environment.define env name (Val_function fn)
+
+  | Return (_tok, expr_opt) ->
+      let v = match expr_opt with Some e -> evaluate env e | None -> Val_nil in
+      raise (Return v)
 
 let global_env = Environment.create ()
 
@@ -170,5 +227,8 @@ let interpret statements =
   try
     List.iter (execute global_env) statements;
     Ok ()
-  with RuntimeError (msg, line) ->
-    Error (Printf.sprintf "Line %d: %s" line msg)
+  with
+  | RuntimeError (msg, line) ->
+      Error (Printf.sprintf "Line %d: %s" line msg)
+  | Return _ ->
+      Error ("Return statement outside of function.")

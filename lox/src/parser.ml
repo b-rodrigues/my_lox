@@ -1,5 +1,3 @@
-(* lox/src/parser.ml *)
-
 open Token
 open Ast
 
@@ -49,7 +47,10 @@ let consume parser token_type message =
 
 (* Forward declarations *)
 let rec declaration parser =
-  if match_tokens parser [VAR] then
+  if match_tokens parser [FUN] then
+    let parser = advance parser in
+    fun_declaration parser
+  else if match_tokens parser [VAR] then
     let parser = advance parser in
     var_declaration parser
   else
@@ -147,6 +148,19 @@ and statement parser =
     let (parser, body) = if check parser LEFT_BRACE then let p = advance parser in block p else statement parser in
     (parser, While (cond, body))
 
+  (* return *)
+  else if match_tokens parser [RETURN] then
+    let parser = advance parser in
+    let ret_tok = previous parser in
+    let (parser, value_opt) =
+      if check parser SEMICOLON then (parser, None)
+      else
+        let (p, e) = expression parser in
+        (p, Some e)
+    in
+    let (parser, _) = consume parser SEMICOLON "Expect ';' after return value." in
+    (parser, Return (ret_tok, value_opt))
+
   (* print *)
   else if match_tokens parser [PRINT] then
     let parser = advance parser in
@@ -165,10 +179,48 @@ and statement parser =
     let (parser, _) = consume parser SEMICOLON "Expect ';' after expression." in
     (parser, Expression expr)
 
+and fun_declaration parser =
+  let (parser, name_tok) = consume parser IDENTIFIER "Expect function name." in
+  let name = name_tok.lexeme in
+  let (parser, _) = consume parser LEFT_PAREN "Expect '(' after function name." in
+  (* parameters *)
+  let rec params_loop parser acc =
+    if check parser RIGHT_PAREN then (parser, List.rev acc)
+    else
+      let (p, param_tok) = consume parser IDENTIFIER "Expect parameter name." in
+      let acc = param_tok.lexeme :: acc in
+      if match_tokens p [COMMA] then
+        params_loop (advance p) acc
+      else
+        (p, List.rev acc)
+  in
+  let (parser, params) = params_loop parser [] in
+  let (parser, _) = consume parser RIGHT_PAREN "Expect ')' after parameters." in
+  (* body *)
+  let (parser, body_stmts) =
+    if check parser LEFT_BRACE then
+      let p = advance parser in
+      let (p, blk) = block p in
+      match blk with
+      | Block stmts -> (p, stmts)
+      | _ -> failwith "block did not return Block"
+    else
+      let t = peek parser in
+      raise (ParseError ("Expect '{' before function body.", t.line))
+  in
+  (parser, Fun (name, params, body_stmts))
+
 and var_declaration parser =
   let (parser, name_tok) = consume parser IDENTIFIER "Expect variable name." in
   let name = name_tok.lexeme in
-  let (parser, init_expr) = if match_tokens parser [EQUAL] then let p = advance parser in let (p, e) = expression p in (p, Some e) else (parser, None) in
+  let (parser, init_expr) =
+    if match_tokens parser [EQUAL] then
+      let p = advance parser in
+      let (p, e) = expression p in
+      (p, Some e)
+    else
+      (parser, None)
+  in
   let (parser, _) = consume parser SEMICOLON "Expect ';' after variable declaration." in
   (parser, Var (name, init_expr))
 
@@ -264,7 +316,32 @@ and unary parser =
     let (parser, right) = unary parser in
     (parser, Unary (operator, right))
   else
-    primary parser
+    call parser
+
+and call parser =
+  let (parser, callee) = primary parser in
+  let rec loop parser expr =
+    if match_tokens parser [LEFT_PAREN] then
+      let parser = advance parser in
+      (* arguments *)
+      let rec args_loop parser acc =
+        if check parser RIGHT_PAREN then (parser, List.rev acc)
+        else
+          let (p, arg) = expression parser in
+          let acc = arg :: acc in
+          if match_tokens p [COMMA] then
+            args_loop (advance p) acc
+          else
+            (p, List.rev acc)
+      in
+      let (parser, args) = args_loop parser [] in
+      let (parser, _) = consume parser RIGHT_PAREN "Expect ')' after arguments." in
+      let paren = previous parser in
+      loop parser (Call (expr, paren, args))
+    else
+      (parser, expr)
+  in
+  loop parser callee
 
 and primary parser =
   if match_tokens parser [FALSE] then
