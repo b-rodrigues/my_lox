@@ -77,6 +77,8 @@ let run_prompt () =
 
 (* Entry point *)
 let () =
+  (* Register built-ins once at startup *)
+  Builtins.register_all Interpreter.global_env;
   match Sys.argv with
   | [| _ |] ->
       Printf.printf "Welcome to Lox REPL!\n";

@@ -1,3 +1,5 @@
+(* lox/src/interpreter.ml *)
+
 open Token
 open Ast
 
@@ -12,11 +14,17 @@ and value =
   | Val_bool   of bool
   | Val_nil
   | Val_function of lox_function
+  | Val_native of native_fn
 and lox_function = {
   name    : string;
   params  : string list;
   body    : stmt list;
   closure : env;
+}
+and native_fn = {
+  name   : string;
+  arity  : int;
+  call   : value list -> value;
 }
 
 exception RuntimeError of string * int
@@ -63,6 +71,7 @@ let value_to_string = function
   | Val_bool false-> "false"
   | Val_nil       -> "nil"
   | Val_function fn -> Printf.sprintf "<fn %s>" fn.name
+  | Val_native nf   -> Printf.sprintf "<native fn %s>" nf.name
 
 let is_truthy = function
   | Val_bool false | Val_nil -> false
@@ -175,6 +184,12 @@ let rec evaluate env = function
               Val_nil
             with
             | Return v -> v)
+       | Val_native nf ->
+           let expected = nf.arity in
+           let got = List.length args in
+           if expected <> got then
+             raise (RuntimeError (Printf.sprintf "Expected %d arguments but got %d." expected got, paren.line));
+           nf.call args
        | _ ->
            raise (RuntimeError ("Can only call functions.", paren.line))
       )

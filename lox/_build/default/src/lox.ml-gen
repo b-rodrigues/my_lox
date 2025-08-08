@@ -3,6 +3,9 @@
 (** @canonical Lox.Ast *)
 module Ast = Lox__Ast
 
+(** @canonical Lox.Builtins *)
+module Builtins = Lox__Builtins
+
 (** @canonical Lox.Interpreter *)
 module Interpreter = Lox__Interpreter
 
