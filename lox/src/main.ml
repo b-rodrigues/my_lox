@@ -1,9 +1,7 @@
 open Lox
 
-(*
- * MODIFIED: This function now returns a boolean indicating success (true) or failure (false).
- * It no longer calls `exit` directly.
- *)
+(* Run source string; is_repl indicates REPL vs file.
+   Returns true on success, false on error. *)
 let run source is_repl =
   try
     match Scanner.scan source with
@@ -18,57 +16,66 @@ let run source is_repl =
               else
                 statements
             in
-            (* Assuming an interpreter.ml file with a similar structure *)
             match Interpreter.interpret statements with
-            | Ok () -> true (* Success *)
+            | Ok () -> true
             | Error msg ->
                 Printf.eprintf "Runtime error: %s\n" msg;
                 flush stderr;
-                false (* Failure *)
-            )
+                false
+          )
         | Error msg ->
             Printf.eprintf "Parse error: %s\n" msg;
             flush stderr;
-            false (* Failure *)
-        )
+            false
+      )
     | Error msg ->
         Printf.eprintf "Scan error: %s\n" msg;
         flush stderr;
-        false (* Failure *)
+        false
   with
-  (* Add a catch-all for unexpected exceptions from modules if they aren't caught already *)
   | Failure msg ->
       Printf.eprintf "Internal error: %s\n" msg;
       flush stderr;
       false
 
-(*
- * MODIFIED: This function now checks the boolean result of `run`
- * and is responsible for exiting if an error occurred.
- *)
+(* Run a file, exiting with code on error *)
 let run_file filename =
   let ic = open_in filename in
   let source = really_input_string ic (in_channel_length ic) in
   close_in ic;
-  if not (run source false) then exit 65 (* Standard exit code for data error *)
+  if not (run source false) then exit 65
 
-
-(*
- * MODIFIED: The main loop now calls `run` but ignores its return value.
- * Whether it succeeds or fails, we want the loop to continue.
- *)
+(* Read lines until braces balance, then return full source *)
 let run_prompt () =
+  let read_until_balanced first_prompt cont_prompt =
+    let buf = Buffer.create 256 in
+    let rec loop depth prompt =
+      match LNoise.linenoise prompt with
+      | None -> None
+      | Some line ->
+          Buffer.add_string buf (line ^ "\n");
+          let opens  = String.fold_left (fun acc c -> if c = '{' then acc + 1 else acc) 0 line in
+          let closes = String.fold_left (fun acc c -> if c = '}' then acc + 1 else acc) 0 line in
+          let depth = depth + opens - closes in
+          if depth > 0 then
+            loop depth cont_prompt
+          else
+            Some (Buffer.contents buf)
+    in
+    loop 0 first_prompt
+  in
+
   let rec loop () =
-    match LNoise.linenoise "> " with
-    | None -> print_endline ""; () (* End of input *)
-    | Some line ->
-        ignore (LNoise.history_add line);  (* Silently discard *)
-        ignore (run line true);
+    match read_until_balanced "> " "... " with
+    | None -> print_endline ""; ()
+    | Some source ->
+        ignore (LNoise.history_add source);
+        ignore (run source true);
         loop ()
   in
   loop ()
 
-(* This part remains the same *)
+(* Entry point *)
 let () =
   match Sys.argv with
   | [| _ |] ->

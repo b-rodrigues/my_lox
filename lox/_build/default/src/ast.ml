@@ -12,4 +12,6 @@ type stmt =
   | Expression of expr
   | Print of expr
   | Var of string * expr option
+  | If of expr * stmt * stmt option
+  | Block of stmt list
 [@@deriving show]
