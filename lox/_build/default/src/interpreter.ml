@@ -1,5 +1,3 @@
-(* lox/src/interpreter.ml *)
-
 open Token
 open Ast
 
@@ -15,16 +13,19 @@ and value =
   | Val_nil
   | Val_function of lox_function
   | Val_native of native_fn
+
 and lox_function = {
   name    : string;
   params  : string list;
   body    : stmt list;
   closure : env;
 }
+
 and native_fn = {
-  name   : string;
-  arity  : int;
-  call   : value list -> value;
+  name  : string;
+  arity : int;  (* number of positional args required *)
+  call  : line:int -> value list -> (string * value) list -> value;
+  (*                       ^positional          ^named args *)
 }
 
 exception RuntimeError of string * int
@@ -170,9 +171,9 @@ let rec evaluate env = function
 
   | Call (callee_expr, paren, arg_exprs) ->
       let callee = evaluate env callee_expr in
-      let args = List.map (evaluate env) arg_exprs in
       (match callee with
        | Val_function fn ->
+           let args = List.map (evaluate env) arg_exprs in
            let expected = List.length fn.params in
            let got = List.length args in
            if expected <> got then
@@ -184,12 +185,34 @@ let rec evaluate env = function
               Val_nil
             with
             | Return v -> v)
+
        | Val_native nf ->
-           let expected = nf.arity in
-           let got = List.length args in
-           if expected <> got then
-             raise (RuntimeError (Printf.sprintf "Expected %d arguments but got %d." expected got, paren.line));
-           nf.call args
+           (* For native calls: support named args using assignment syntax inside call:
+              clock(time = "human")
+              We intercept Assign(name, expr) without performing an environment assignment. *)
+           let (pos_args_rev, named_args_rev) =
+             List.fold_left
+               (fun (pos, named) arg_e ->
+                  match arg_e with
+                  | Assign (name, rhs) ->
+                      (* evaluate only rhs; treat as named argument, do NOT mutate env *)
+                      let v = evaluate env rhs in
+                      if List.exists (fun (n, _) -> n = name) named then
+                        raise (RuntimeError (Printf.sprintf "Duplicate named argument '%s'." name, paren.line));
+                      (pos, (name, v) :: named)
+                  | _ ->
+                      let v = evaluate env arg_e in
+                      (v :: pos, named))
+               ([], [])
+               arg_exprs
+           in
+           let pos_args = List.rev pos_args_rev in
+           let named_args = List.rev named_args_rev in
+           let got = List.length pos_args in
+           if got <> nf.arity then
+             raise (RuntimeError (Printf.sprintf "Expected %d positional arguments but got %d." nf.arity got, paren.line));
+           nf.call ~line:paren.line pos_args named_args
+
        | _ ->
            raise (RuntimeError ("Can only call functions.", paren.line))
       )
