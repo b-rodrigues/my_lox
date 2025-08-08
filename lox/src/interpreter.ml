@@ -148,11 +148,12 @@ let execute env = function
   | Expression expr ->
       let _ = evaluate env expr in
       ()
-  
+
   | Print expr ->
       let value = evaluate env expr in
-      Printf.printf "%s\n" (value_to_string value)
-  
+      Printf.printf "%s\n" (value_to_string value);
+      flush stdout
+
   | Var (name, init_expr) ->
       let value = match init_expr with
         | Some expr -> evaluate env expr

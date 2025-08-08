@@ -73,6 +73,7 @@ let () =
   match Sys.argv with
   | [| _ |] ->
       Printf.printf "Welcome to Lox REPL!\n";
+      flush stdout;
       run_prompt ()
   | [| _; filename |] ->
       run_file filename
