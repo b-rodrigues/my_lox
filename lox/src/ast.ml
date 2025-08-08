@@ -4,8 +4,8 @@ type expr =
   | Grouping of expr
   | Literal of Token.literal
   | Unary of Token.token * expr
-  | Variable of string
-  | Assign of string * expr
+  | Variable of string * int option * int          (* name, resolved depth, line *)
+  | Assign of string * expr * int option * int     (* name, value, resolved depth, line *)
   | Call of expr * Token.token * expr list
 [@@deriving show]
 

@@ -13,19 +13,16 @@ and value =
   | Val_nil
   | Val_function of lox_function
   | Val_native of native_fn
-
 and lox_function = {
   name    : string;
   params  : string list;
   body    : stmt list;
   closure : env;
 }
-
 and native_fn = {
   name  : string;
-  arity : int;  (* number of positional args required *)
+  arity : int;  (* positional args *)
   call  : line:int -> value list -> (string * value) list -> value;
-  (*                       ^positional          ^named args *)
 }
 
 exception RuntimeError of string * int
@@ -55,6 +52,25 @@ module Environment = struct
       match env.enclosing with
       | Some parent -> assign parent name v
       | None -> raise (RuntimeError ("Undefined variable '" ^ name ^ "'.", 1))
+
+  let rec ancestor (env : t) distance : t =
+    if distance = 0 then env
+    else match env.enclosing with
+      | Some e -> ancestor e (distance - 1)
+      | None -> env
+
+  let get_at (env : t) distance name : value =
+    let target = ancestor env distance in
+    match Hashtbl.find_opt target.values name with
+    | Some v -> v
+    | None -> raise (RuntimeError ("Undefined variable '" ^ name ^ "'.", 1))
+
+  let assign_at (env : t) distance name v : unit =
+    let target = ancestor env distance in
+    if Hashtbl.mem target.values name then
+      Hashtbl.replace target.values name v
+    else
+      raise (RuntimeError ("Undefined variable '" ^ name ^ "'.", 1))
 end
 
 let literal_to_value = function
@@ -88,16 +104,20 @@ let is_equal v1 v2 =
   | _ -> false
 
 let rec evaluate env = function
-  | Assign (name, expr) ->
+  | Assign (name, expr, depth_opt, _line) ->
       let value = evaluate env expr in
-      Environment.assign env name value;
+      (match depth_opt with
+       | Some d -> Environment.assign_at env d name value
+       | None -> Environment.assign env name value);
       value
 
   | Literal lit ->
       literal_to_value lit
 
-  | Variable name ->
-      Environment.get env name
+  | Variable (name, depth_opt, _line) ->
+      (match depth_opt with
+       | Some d -> Environment.get_at env d name
+       | None -> Environment.get env name)
 
   | Grouping expr ->
       evaluate env expr
@@ -187,15 +207,11 @@ let rec evaluate env = function
             | Return v -> v)
 
        | Val_native nf ->
-           (* For native calls: support named args using assignment syntax inside call:
-              clock(time = "human")
-              We intercept Assign(name, expr) without performing an environment assignment. *)
            let (pos_args_rev, named_args_rev) =
              List.fold_left
                (fun (pos, named) arg_e ->
                   match arg_e with
-                  | Assign (name, rhs) ->
-                      (* evaluate only rhs; treat as named argument, do NOT mutate env *)
+                  | Assign (name, rhs, _, _) ->
                       let v = evaluate env rhs in
                       if List.exists (fun (n, _) -> n = name) named then
                         raise (RuntimeError (Printf.sprintf "Duplicate named argument '%s'." name, paren.line));

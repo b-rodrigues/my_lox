@@ -4,9 +4,7 @@ let define_native env name arity call =
   Environment.define env name (Val_native { name; arity; call })
 
 let register_all env =
-  (* clock(time = "unix" | "human")
-     - default: "unix"
-     - no positional args allowed *)
+  (* clock(time = "unix" | "human") *)
   define_native env "clock" 0 (fun ~line pos named ->
     if pos <> [] then
       raise (RuntimeError ("clock() does not take positional arguments; use clock(time = \"unix\"|\"human\")", line));

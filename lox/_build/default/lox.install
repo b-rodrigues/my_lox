@@ -23,6 +23,9 @@ lib: [
   "_build/install/default/lib/lox/lox__Parser.cmi"
   "_build/install/default/lib/lox/lox__Parser.cmt"
   "_build/install/default/lib/lox/lox__Parser.cmx"
+  "_build/install/default/lib/lox/lox__Resolver.cmi"
+  "_build/install/default/lib/lox/lox__Resolver.cmt"
+  "_build/install/default/lib/lox/lox__Resolver.cmx"
   "_build/install/default/lib/lox/lox__Scanner.cmi"
   "_build/install/default/lib/lox/lox__Scanner.cmt"
   "_build/install/default/lib/lox/lox__Scanner.cmx"
@@ -31,6 +34,7 @@ lib: [
   "_build/install/default/lib/lox/lox__Token.cmx"
   "_build/install/default/lib/lox/opam"
   "_build/install/default/lib/lox/parser.ml"
+  "_build/install/default/lib/lox/resolver.ml"
   "_build/install/default/lib/lox/scanner.ml"
   "_build/install/default/lib/lox/token.ml"
 ]

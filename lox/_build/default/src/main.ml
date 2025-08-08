@@ -8,6 +8,7 @@ let run source is_repl =
     | Ok tokens -> (
         match Parser.parse tokens with
         | Ok statements -> (
+            (* REPL auto-print tweak first so resolver sees final form *)
             let statements =
               if is_repl then
                 match statements with
@@ -16,12 +17,19 @@ let run source is_repl =
               else
                 statements
             in
-            match Interpreter.interpret statements with
-            | Ok () -> true
+            (* Resolve *)
+            match Resolver.resolve statements with
             | Error msg ->
-                Printf.eprintf "Runtime error: %s\n" msg;
+                Printf.eprintf "Resolve error: %s\n" msg;
                 flush stderr;
                 false
+            | Ok resolved ->
+                match Interpreter.interpret resolved with
+                | Ok () -> true
+                | Error msg ->
+                    Printf.eprintf "Runtime error: %s\n" msg;
+                    flush stderr;
+                    false
           )
         | Error msg ->
             Printf.eprintf "Parse error: %s\n" msg;
@@ -77,7 +85,6 @@ let run_prompt () =
 
 (* Entry point *)
 let () =
-  (* Register built-ins once at startup *)
   Builtins.register_all Interpreter.global_env;
   match Sys.argv with
   | [| _ |] ->

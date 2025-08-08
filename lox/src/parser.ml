@@ -57,7 +57,6 @@ let rec declaration parser =
     statement parser
 
 and statement parser =
-  (* if statement *)
   if match_tokens parser [IF] then
     let parser = advance parser in
     let (parser, _)    = consume parser LEFT_PAREN  "Expect '(' after 'if'." in
@@ -84,11 +83,9 @@ and statement parser =
     in
     (parser, If (cond, then_b, else_b))
 
-  (* for loop desugaring *)
   else if match_tokens parser [FOR] then
     let parser = advance parser in
     let (parser, _) = consume parser LEFT_PAREN "Expect '(' after 'for'." in
-    (* initializer *)
     let (parser, init_stmt) =
       if match_tokens parser [SEMICOLON] then
         let parser = advance parser in
@@ -101,7 +98,6 @@ and statement parser =
         let (p, _) = consume p SEMICOLON "Expect ';' after loop initializer." in
         (p, Some (Expression expr))
     in
-    (* condition *)
     let (parser, cond_expr) =
       if match_tokens parser [SEMICOLON] then
         let parser = advance parser in
@@ -111,7 +107,6 @@ and statement parser =
         let (p, _) = consume p SEMICOLON "Expect ';' after loop condition." in
         (p, expr)
     in
-    (* increment *)
     let (parser, incr_stmt) =
       if match_tokens parser [RIGHT_PAREN] then
         (parser, None)
@@ -120,14 +115,12 @@ and statement parser =
         let (p, _) = consume p RIGHT_PAREN "Expect ')' after for clauses." in
         (p, Some (Expression expr))
     in
-    (* body *)
     let (parser, body_stmt) =
       if check parser LEFT_BRACE then
         let p = advance parser in block p
       else
         statement parser
     in
-    (* desugar *)
     let loop_body = match incr_stmt with
       | None     -> body_stmt
       | Some inc -> Block [body_stmt; inc]
@@ -139,7 +132,6 @@ and statement parser =
     in
     (parser, Block stmts)
 
-  (* while loop *)
   else if match_tokens parser [WHILE] then
     let parser = advance parser in
     let (parser, _)    = consume parser LEFT_PAREN  "Expect '(' after 'while'." in
@@ -148,7 +140,6 @@ and statement parser =
     let (parser, body) = if check parser LEFT_BRACE then let p = advance parser in block p else statement parser in
     (parser, While (cond, body))
 
-  (* return *)
   else if match_tokens parser [RETURN] then
     let parser = advance parser in
     let ret_tok = previous parser in
@@ -161,19 +152,16 @@ and statement parser =
     let (parser, _) = consume parser SEMICOLON "Expect ';' after return value." in
     (parser, Return (ret_tok, value_opt))
 
-  (* print *)
   else if match_tokens parser [PRINT] then
     let parser = advance parser in
     let (parser, value) = expression parser in
     let (parser, _) = consume parser SEMICOLON "Expect ';' after value." in
     (parser, Print value)
 
-  (* block *)
   else if check parser LEFT_BRACE then
     let parser = advance parser in
     block parser
 
-  (* expression statement *)
   else
     let (parser, expr) = expression parser in
     let (parser, _) = consume parser SEMICOLON "Expect ';' after expression." in
@@ -183,7 +171,6 @@ and fun_declaration parser =
   let (parser, name_tok) = consume parser IDENTIFIER "Expect function name." in
   let name = name_tok.lexeme in
   let (parser, _) = consume parser LEFT_PAREN "Expect '(' after function name." in
-  (* parameters *)
   let rec params_loop parser acc =
     if check parser RIGHT_PAREN then (parser, List.rev acc)
     else
@@ -196,7 +183,6 @@ and fun_declaration parser =
   in
   let (parser, params) = params_loop parser [] in
   let (parser, _) = consume parser RIGHT_PAREN "Expect ')' after parameters." in
-  (* body *)
   let (parser, body_stmts) =
     if check parser LEFT_BRACE then
       let p = advance parser in
@@ -232,8 +218,10 @@ and assignment parser =
     let parser = advance parser in
     let (parser, rhs) = assignment parser in
     (match lhs with
-     | Variable name -> (parser, Assign (name, rhs))
-     | _ -> let t = peek parser in raise (ParseError ("Invalid assignment target.", t.line)))
+     | Variable (name, _, line) -> (parser, Assign (name, rhs, None, line))
+     | _ ->
+         let t = peek parser in
+         raise (ParseError ("Invalid assignment target.", t.line)))
   else
     (parser, lhs)
 
@@ -323,7 +311,6 @@ and call parser =
   let rec loop parser expr =
     if match_tokens parser [LEFT_PAREN] then
       let parser = advance parser in
-      (* arguments *)
       let rec args_loop parser acc =
         if check parser RIGHT_PAREN then (parser, List.rev acc)
         else
@@ -353,7 +340,9 @@ and primary parser =
   else if match_tokens parser [NUMBER; STRING] then
     let parser = advance parser in let token = previous parser in (parser, Literal (Option.get token.literal))
   else if match_tokens parser [IDENTIFIER] then
-    let parser = advance parser in let token = previous parser in (parser, Variable token.lexeme)
+    let parser = advance parser in
+    let token = previous parser in
+    (parser, Variable (token.lexeme, None, token.line))
   else if match_tokens parser [LEFT_PAREN] then
     let parser = advance parser in
     let (parser, expr) = expression parser in

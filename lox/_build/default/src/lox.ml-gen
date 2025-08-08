@@ -12,6 +12,9 @@ module Interpreter = Lox__Interpreter
 (** @canonical Lox.Parser *)
 module Parser = Lox__Parser
 
+(** @canonical Lox.Resolver *)
+module Resolver = Lox__Resolver
+
 (** @canonical Lox.Scanner *)
 module Scanner = Lox__Scanner
 

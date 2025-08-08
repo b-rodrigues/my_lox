@@ -27,6 +27,9 @@
    lox__Parser.cmi
    lox__Parser.cmt
    lox__Parser.cmx
+   lox__Resolver.cmi
+   lox__Resolver.cmt
+   lox__Resolver.cmx
    lox__Scanner.cmi
    lox__Scanner.cmt
    lox__Scanner.cmx
@@ -35,6 +38,7 @@
    lox__Token.cmx
    opam
    parser.ml
+   resolver.ml
    scanner.ml
    token.ml))
  (libexec (lox.cmxs))
@@ -74,6 +78,10 @@
       (obj_name lox__Parser)
       (visibility public)
       (source (path Parser) (impl (path parser.ml))))
+     (module
+      (obj_name lox__Resolver)
+      (visibility public)
+      (source (path Resolver) (impl (path resolver.ml))))
      (module
       (obj_name lox__Scanner)
       (visibility public)
