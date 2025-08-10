@@ -12,6 +12,7 @@ and expr =
   | Call of expr * Token.token * call_arg list
   | Get of expr * string * int                           (* object, property name, line *)
   | Set of expr * string * expr * int                    (* object, property name, value, line *)
+  | Super of Token.token * string * int * int option     (* 'super' token, method name, line, resolved depth of 'super' binding *)
 [@@deriving show]
 
 type stmt =
@@ -22,6 +23,7 @@ type stmt =
   | Block of stmt list
   | While of expr * stmt
   | Fun of string * string list * stmt list
-  | Class of string * (string * string list * stmt list) list
+  | Class of string * expr option * (string * string list * stmt list) list
+      (* name, optional superclass expression (Variable), methods *)
   | Return of Token.token * expr option
 [@@deriving show]

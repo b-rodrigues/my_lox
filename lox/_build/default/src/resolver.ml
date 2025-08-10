@@ -2,24 +2,32 @@ open Ast
 
 exception ResolveError of string * int
 
+(* Function kinds *)
 type function_type =
   | FT_none
   | FT_function
   | FT_initializer
 
+(* Class kinds *)
 type class_type =
   | CT_none
   | CT_class
+  | CT_subclass
 
-type scope = (string, bool) Hashtbl.t  (* name -> defined? *)
+(* A scope maps variable name -> is_defined yet?  (false means declared, not yet fully defined) *)
+type scope = (string, bool) Hashtbl.t
 
 type t = {
-  mutable scopes : scope list;         (* innermost first (head) *)
+  mutable scopes : scope list;            (* innermost scope is head of list *)
   mutable current_function : function_type;
   mutable current_class : class_type;
 }
 
-let create () = { scopes = []; current_function = FT_none; current_class = CT_none }
+let create () = {
+  scopes = [];
+  current_function = FT_none;
+  current_class = CT_none;
+}
 
 let push_scope r =
   r.scopes <- (Hashtbl.create 16) :: r.scopes
@@ -31,7 +39,7 @@ let pop_scope r =
 
 let declare r name line =
   match r.scopes with
-  | [] -> ()  (* global; no tracking needed *)
+  | [] -> ()
   | scope :: _ ->
       if Hashtbl.mem scope name then
         raise (ResolveError (Printf.sprintf "Variable '%s' already declared in this scope." name, line));
@@ -42,7 +50,7 @@ let define r name =
   | [] -> ()
   | scope :: _ -> Hashtbl.replace scope name true
 
-let rec resolve_stmts r (stmts : stmt list) : stmt list =
+let rec resolve_stmts r stmts =
   List.map (resolve_stmt r) stmts
 
 and resolve_stmt r = function
@@ -70,35 +78,77 @@ and resolve_stmt r = function
   | Fun (name, params, body) ->
       declare r name 0;
       define r name;
-      let enclosing_fn = r.current_function in
-      r.current_function <- FT_function;
-      push_scope r;
-      List.iter (fun p -> declare r p 0; define r p) params;
-      let body' = resolve_stmts r body in
-      pop_scope r;
-      r.current_function <- enclosing_fn;
-      Fun (name, params, body')
-  | Class (name, methods) ->
+      resolve_function r ~kind:FT_function ~params ~body (fun body' ->
+        Fun (name, params, body'))
+  | Class (name, superclass_opt, methods) ->
+      (* Declare & define class name so methods can reference it *)
       declare r name 0;
       define r name;
       let enclosing_class = r.current_class in
-      r.current_class <- CT_class;
-      (* Methods *)
-      List.iter
-        (fun (mname, params, _body) ->
-          let enclosing_fn = r.current_function in
-          let fn_type = if mname = "init" then FT_initializer else FT_function in
-          r.current_function <- fn_type;
-          push_scope r;
-          (* 'this' in method scope *)
-          declare r "this" 0; define r "this";
-          List.iter (fun p -> declare r p 0; define r p) params;
-          ignore (resolve_stmts r _body);
-          pop_scope r;
-          r.current_function <- enclosing_fn
-        ) methods;
+      (* Resolve superclass if any *)
+      let (superclass_opt', class_kind) =
+        match superclass_opt with
+        | None -> (None, CT_class)
+        | Some (Variable (sname, _, line) as super_expr) ->
+            if sname = name then
+              raise (ResolveError ("A class can't inherit from itself.", line));
+            let resolved_super = resolve_expr r super_expr in
+            (Some resolved_super, CT_subclass)
+        | Some _ -> (superclass_opt, CT_subclass)  (* Shouldn't happen; parser builds Variable. *)
+      in
+      r.current_class <- class_kind;
+
+      (* IMPORTANT: Scope layering MUST mirror runtime:
+         Runtime chain when calling a method of subclass:
+           params_scope (depth 0)
+           this_scope   (depth 1)
+           super_scope  (depth 2)    (only for subclass)
+           ... outer env ...
+         So we push scopes in reverse order (outer first) so that the list head
+         (innermost) ends up being params, then this, then super. *)
+
+      (* For subclass: push a scope for 'super' (outermost of the three) *)
+      (match superclass_opt' with
+       | Some _ ->
+           push_scope r;
+           declare r "super" 0; define r "super"
+       | None -> ());
+
+      let methods' =
+        List.map
+          (fun (mname, params, body) ->
+             let fn_type =
+               if mname = "init" then FT_initializer else FT_function
+             in
+             let enclosing_fn = r.current_function in
+             r.current_function <- fn_type;
+
+             (* Push 'this' scope (will become middle layer) *)
+             push_scope r;
+             declare r "this" 0; define r "this";
+
+             (* Push params scope (innermost) *)
+             push_scope r;
+             List.iter (fun p -> declare r p 0; define r p) params;
+
+             let body' = resolve_stmts r body in
+
+             (* Pop in reverse order *)
+             pop_scope r;      (* params *)
+             pop_scope r;      (* this *)
+
+             r.current_function <- enclosing_fn;
+             (mname, params, body'))
+          methods
+      in
+
+      (* Pop 'super' scope if we created it *)
+      (match superclass_opt' with
+       | Some _ -> pop_scope r
+       | None -> ());
+
       r.current_class <- enclosing_class;
-      Class (name, methods)
+      Class (name, superclass_opt', methods')
   | Return (tok, expr_opt) ->
       if r.current_function = FT_none then
         raise (ResolveError ("Can't return from top-level code.", tok.Token.line));
@@ -108,6 +158,17 @@ and resolve_stmt r = function
        | _ -> ());
       let expr_opt' = Option.map (resolve_expr r) expr_opt in
       Return (tok, expr_opt')
+
+and resolve_function r ~kind ~params ~body k =
+  let enclosing_fn = r.current_function in
+  r.current_function <- kind;
+  (* For normal functions we have only one scope for params (no 'this', 'super') *)
+  push_scope r;
+  List.iter (fun p -> declare r p 0; define r p) params;
+  let body' = resolve_stmts r body in
+  pop_scope r;
+  r.current_function <- enclosing_fn;
+  k body'
 
 and resolve_expr r = function
   | Literal _ as e -> e
@@ -120,21 +181,26 @@ and resolve_expr r = function
         List.map
           (function
             | Arg_pos e -> Arg_pos (resolve_expr r e)
-            | Arg_named (name, e, line) -> Arg_named (name, resolve_expr r e, line))
+            | Arg_named (n, e, line) -> Arg_named (n, resolve_expr r e, line))
           args
       in
       Call (callee', tok, args')
   | Get (obj, name, line) ->
-      let obj' = resolve_expr r obj in
-      Get (obj', name, line)
+      Get (resolve_expr r obj, name, line)
   | Set (obj, name, value, line) ->
-      let obj' = resolve_expr r obj in
-      let value' = resolve_expr r value in
-      Set (obj', name, value', line)
-  | Variable (name, _, line) as v ->
+      Set (resolve_expr r obj, name, resolve_expr r value, line)
+  | Super (tok, method_name, line, _) ->
+      if r.current_class = CT_none then
+        raise (ResolveError ("Can't use 'super' outside of a class.", line));
+      if r.current_class <> CT_subclass then
+        raise (ResolveError ("Can't use 'super' in a class with no superclass.", line));
+      let depth_opt = resolve_local r "super" in
+      Super (tok, method_name, line, depth_opt)
+  | Variable (name, _, line) ->
       if name = "this" && r.current_class = CT_none then
         raise (ResolveError ("Can't use 'this' outside of a class.", line));
-      (* Can't read local variable in its own initializer *)
+      if name = "super" && r.current_class <> CT_subclass then
+        raise (ResolveError ("Can't use 'super' in a class with no superclass.", line));
       (match r.scopes with
        | scope :: _ ->
            (match Hashtbl.find_opt scope name with
@@ -143,9 +209,7 @@ and resolve_expr r = function
             | _ -> ())
        | [] -> ());
       let depth_opt = resolve_local r name in
-      (match v with
-       | Variable (_, _, _) -> Variable (name, depth_opt, line)
-       | _ -> v)
+      Variable (name, depth_opt, line)
   | Assign (name, value, _, line) ->
       let value' = resolve_expr r value in
       let depth_opt = resolve_local r name in
@@ -156,16 +220,15 @@ and resolve_local r name : int option =
     match scopes with
     | [] -> None
     | scope :: rest ->
-        if Hashtbl.mem scope name
-        then Some idx
+        if Hashtbl.mem scope name then Some idx
         else find rest (idx + 1)
   in
   find r.scopes 0
 
-let resolve (stmts : stmt list) : (stmt list, string) result =
+let resolve stmts =
   try
     let r = create () in
-    (* synthetic global scope *)
+    (* Global scope (depth grows outward) *)
     push_scope r;
     let resolved = resolve_stmts r stmts in
     pop_scope r;
