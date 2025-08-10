@@ -53,7 +53,9 @@ let consume parser token_type message =
 
 (* Forward declarations *)
 let rec declaration parser =
-  if match_tokens parser [FUN] then
+  if match_tokens parser [CLASS] then
+    class_declaration (advance parser)
+  else if match_tokens parser [FUN] then
     let parser = advance parser in
     fun_declaration parser
   else if match_tokens parser [VAR] then
@@ -61,6 +63,48 @@ let rec declaration parser =
     var_declaration parser
   else
     statement parser
+
+and class_declaration parser =
+  let (parser, name_tok) = consume parser IDENTIFIER "Expect class name." in
+  let class_name = name_tok.lexeme in
+  let (parser, _) = consume parser LEFT_BRACE "Expect '{' before class body." in
+  let rec methods_loop parser acc =
+    if check parser RIGHT_BRACE || is_at_end parser then
+      (parser, List.rev acc)
+    else
+      let (parser, m_name_tok) = consume parser IDENTIFIER "Expect method name." in
+      let m_name = m_name_tok.lexeme in
+      let (parser, _) = consume parser LEFT_PAREN "Expect '(' after method name." in
+      let rec params_loop parser accp =
+        if check parser RIGHT_PAREN then (parser, List.rev accp)
+        else
+          let (p, param_tok) = consume parser IDENTIFIER "Expect parameter name." in
+            let accp = param_tok.lexeme :: accp in
+            if match_tokens p [COMMA] then
+              params_loop (advance p) accp
+            else
+              (p, List.rev accp)
+      in
+      let (parser, params) = params_loop parser [] in
+      let (parser, _) = consume parser RIGHT_PAREN "Expect ')' after parameters." in
+      let (parser, body_block) =
+        if check parser LEFT_BRACE then
+          let p = advance parser in
+          block p
+        else
+          let t = peek parser in
+          raise (ParseError ("Expect '{' before method body.", t.line))
+      in
+      let body_stmts =
+        match body_block with
+        | Block stmts -> stmts
+        | _ -> failwith "Method body not a block"
+      in
+      methods_loop parser ((m_name, params, body_stmts) :: acc)
+  in
+  let (parser, methods) = methods_loop parser [] in
+  let (parser, _) = consume parser RIGHT_BRACE "Expect '}' after class body." in
+  (parser, Class (class_name, methods))
 
 and statement parser =
   if match_tokens parser [IF] then
@@ -230,6 +274,7 @@ and assignment parser =
     let (parser, rhs) = assignment parser in
     (match lhs with
      | Variable (name, _, line) -> (parser, Assign (name, rhs, None, line))
+     | Get (obj, name, line) -> (parser, Set (obj, name, rhs, line))
      | _ ->
          let t = peek parser in
          raise (ParseError ("Invalid assignment target.", t.line)))
@@ -322,45 +367,46 @@ and call parser =
   let rec loop parser expr =
     if match_tokens parser [LEFT_PAREN] then
       let parser = advance parser in
-      (* Parse positional and named arguments:
-         - Arg_pos: any expression
-         - Arg_named: IDENTIFIER '=' expression (detected via lookahead)
-         Rule: positional arguments may not follow named arguments. *)
       let rec args_loop parser acc seen_named =
         if check parser RIGHT_PAREN then (parser, List.rev acc)
         else
           let t1 = peek parser in
-          let t2 = peek_next parser in
-          if t1.token_type = IDENTIFIER && t2.token_type = EQUAL then
-            (* named argument: name = expr *)
-            let parser = advance parser in
-            let name_tok = previous parser in
-            let name = name_tok.lexeme in
-            let parser = advance parser (* consume '=' *) in
-            let (parser, value_expr) = expression parser in
-            let acc = (Arg_named (name, value_expr, name_tok.line)) :: acc in
-            let seen_named = true in
-            if match_tokens parser [COMMA] then
-              args_loop (advance parser) acc seen_named
-            else
-              (parser, List.rev acc)
-          else
-            (* positional argument *)
-            let (parser, arg_expr) = expression parser in
-            if seen_named then
-              let t = peek parser in
-              raise (ParseError ("Positional arguments cannot follow named arguments.", t.line))
-            else
-              let acc = (Arg_pos arg_expr) :: acc in
+            let t2 = peek_next parser in
+            if t1.token_type = IDENTIFIER && t2.token_type = EQUAL then
+              (* named argument: name = expr *)
+              let parser = advance parser in
+              let name_tok = previous parser in
+              let name = name_tok.lexeme in
+              let parser = advance parser (* consume '=' *) in
+              let (parser, value_expr) = expression parser in
+              let acc = (Arg_named (name, value_expr, name_tok.line)) :: acc in
+              let seen_named = true in
               if match_tokens parser [COMMA] then
                 args_loop (advance parser) acc seen_named
               else
                 (parser, List.rev acc)
+            else
+              (* positional argument *)
+              let (parser, arg_expr) = expression parser in
+              if seen_named then
+                let t = peek parser in
+                raise (ParseError ("Positional arguments cannot follow named arguments.", t.line))
+              else
+                let acc = (Arg_pos arg_expr) :: acc in
+                if match_tokens parser [COMMA] then
+                  args_loop (advance parser) acc seen_named
+                else
+                  (parser, List.rev acc)
       in
       let (parser, args) = args_loop parser [] false in
       let (parser, _) = consume parser RIGHT_PAREN "Expect ')' after arguments." in
       let paren = previous parser in
-      loop parser (Call (callee, paren, args))
+      loop parser (Call (expr, paren, args))
+    else if match_tokens parser [DOT] then
+      let parser = advance parser in
+      let (parser, name_tok) = consume parser IDENTIFIER "Expect property name after '.'." in
+      let name = name_tok.lexeme in
+      loop parser (Get (expr, name, name_tok.line))
     else
       (parser, expr)
   in
@@ -373,6 +419,10 @@ and primary parser =
     let parser = advance(parser) in (parser, Literal (Lit_bool true))
   else if match_tokens parser [NIL] then
     let parser = advance parser in (parser, Literal Lit_nil)
+  else if match_tokens parser [THIS] then
+    let parser = advance parser in
+    let tok = previous parser in
+    (parser, Variable ("this", None, tok.line))
   else if match_tokens parser [NUMBER; STRING] then
     let parser = advance parser in
     let token = previous parser in

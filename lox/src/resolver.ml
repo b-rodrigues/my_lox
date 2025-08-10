@@ -5,15 +5,21 @@ exception ResolveError of string * int
 type function_type =
   | FT_none
   | FT_function
+  | FT_initializer
+
+type class_type =
+  | CT_none
+  | CT_class
 
 type scope = (string, bool) Hashtbl.t  (* name -> defined? *)
 
 type t = {
   mutable scopes : scope list;         (* innermost first (head) *)
   mutable current_function : function_type;
+  mutable current_class : class_type;
 }
 
-let create () = { scopes = []; current_function = FT_none }
+let create () = { scopes = []; current_function = FT_none; current_class = CT_none }
 
 let push_scope r =
   r.scopes <- (Hashtbl.create 16) :: r.scopes
@@ -25,7 +31,7 @@ let pop_scope r =
 
 let declare r name line =
   match r.scopes with
-  | [] -> ()  (* global; nothing to track or already synthetic global *)
+  | [] -> ()  (* global; no tracking needed *)
   | scope :: _ ->
       if Hashtbl.mem scope name then
         raise (ResolveError (Printf.sprintf "Variable '%s' already declared in this scope." name, line));
@@ -48,10 +54,10 @@ and resolve_stmt r = function
       define r name;
       Var (name, init_opt')
   | Block stmts ->
-    push_scope r;
-    let stmts' = resolve_stmts r stmts in
-    pop_scope r;
-    Block stmts'
+      push_scope r;
+      let stmts' = resolve_stmts r stmts in
+      pop_scope r;
+      Block stmts'
   | If (cond, then_b, else_b) ->
       let cond' = resolve_expr r cond in
       let then_b' = resolve_stmt r then_b in
@@ -64,17 +70,42 @@ and resolve_stmt r = function
   | Fun (name, params, body) ->
       declare r name 0;
       define r name;
-      let enclosing = r.current_function in
+      let enclosing_fn = r.current_function in
       r.current_function <- FT_function;
       push_scope r;
       List.iter (fun p -> declare r p 0; define r p) params;
       let body' = resolve_stmts r body in
       pop_scope r;
-      r.current_function <- enclosing;
+      r.current_function <- enclosing_fn;
       Fun (name, params, body')
+  | Class (name, methods) ->
+      declare r name 0;
+      define r name;
+      let enclosing_class = r.current_class in
+      r.current_class <- CT_class;
+      (* Methods *)
+      List.iter
+        (fun (mname, params, _body) ->
+          let enclosing_fn = r.current_function in
+          let fn_type = if mname = "init" then FT_initializer else FT_function in
+          r.current_function <- fn_type;
+          push_scope r;
+          (* 'this' in method scope *)
+          declare r "this" 0; define r "this";
+          List.iter (fun p -> declare r p 0; define r p) params;
+          ignore (resolve_stmts r _body);
+          pop_scope r;
+          r.current_function <- enclosing_fn
+        ) methods;
+      r.current_class <- enclosing_class;
+      Class (name, methods)
   | Return (tok, expr_opt) ->
       if r.current_function = FT_none then
         raise (ResolveError ("Can't return from top-level code.", tok.Token.line));
+      (match r.current_function, expr_opt with
+       | FT_initializer, Some _ ->
+           raise (ResolveError ("Can't return a value from an initializer.", tok.Token.line))
+       | _ -> ());
       let expr_opt' = Option.map (resolve_expr r) expr_opt in
       Return (tok, expr_opt')
 
@@ -93,8 +124,17 @@ and resolve_expr r = function
           args
       in
       Call (callee', tok, args')
-  | Variable (name, _, line) ->
-      (* Error: reading a local variable in its own initializer *)
+  | Get (obj, name, line) ->
+      let obj' = resolve_expr r obj in
+      Get (obj', name, line)
+  | Set (obj, name, value, line) ->
+      let obj' = resolve_expr r obj in
+      let value' = resolve_expr r value in
+      Set (obj', name, value', line)
+  | Variable (name, _, line) as v ->
+      if name = "this" && r.current_class = CT_none then
+        raise (ResolveError ("Can't use 'this' outside of a class.", line));
+      (* Can't read local variable in its own initializer *)
       (match r.scopes with
        | scope :: _ ->
            (match Hashtbl.find_opt scope name with
@@ -103,7 +143,9 @@ and resolve_expr r = function
             | _ -> ())
        | [] -> ());
       let depth_opt = resolve_local r name in
-      Variable (name, depth_opt, line)
+      (match v with
+       | Variable (_, _, _) -> Variable (name, depth_opt, line)
+       | _ -> v)
   | Assign (name, value, _, line) ->
       let value' = resolve_expr r value in
       let depth_opt = resolve_local r name in
@@ -123,7 +165,7 @@ and resolve_local r name : int option =
 let resolve (stmts : stmt list) : (stmt list, string) result =
   try
     let r = create () in
-    (* Track a synthetic global scope so top-level initializers are checked too *)
+    (* synthetic global scope *)
     push_scope r;
     let resolved = resolve_stmts r stmts in
     pop_scope r;
