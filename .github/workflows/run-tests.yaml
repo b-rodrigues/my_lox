@@ -26,6 +26,9 @@ jobs:
           extra-conf: |
             experimental-features = nix-command flakes
 
+      - name: Build environment
+        run: nix-build
+
       # Main test run using default.nix (non-flake)
       - name: Run tests (nix-shell)
         run: |
