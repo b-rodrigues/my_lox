@@ -1,0 +1,7 @@
+class Base { init(a) { this.a = a; } show() { return "Base(" + this.a + ")"; } }
+class Sub < Base {
+  init(a, b) { super.init(a); this.b = b; }
+  show() { return "Sub(" + this.a + "," + this.b + ")"; }
+}
+var s = Sub(10, 5);
+print s.show();

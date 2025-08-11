@@ -1,0 +1,7 @@
+class C {
+  greet() { return "C"; }
+}
+class D < C {
+  greet() { return "D" + super.greet(); }
+}
+print D().greet();

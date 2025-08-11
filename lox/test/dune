@@ -1,2 +1,13 @@
 (test
- (name test_lox))
+ (name test_lox)
+ (modules test_lox)
+ (libraries lox))
+
+(rule
+ (alias runtest)
+ (deps
+   ../src/main.exe
+   run_scripts.sh
+  (source_tree cases))
+ (action
+  (run bash %{dep:run_scripts.sh} %{dep:../src/main.exe})))

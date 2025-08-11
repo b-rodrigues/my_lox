@@ -1,0 +1,4 @@
+class A { val() { return "method"; } }
+var a = A();
+a.val = "field";
+print a.val;
