@@ -1,4 +1,4 @@
-# dune exec lox
+# dune runtest
 # OCAMLPARAM: unset
 # Shared cache: enabled-except-user-rules
 # Shared cache location: /home/brodrigues/.cache/dune/db
@@ -13,4 +13,14 @@
 #  ; build_dir = In_build_dir "default"
 #  ; instrument_with = []
 #  }
-$ /nix/store/dz9b5dqpvz725rj7smb4d2mwv259ah6m-ocaml-5.3.0/bin/ocamlc.opt -config > /tmp/dune_ce061e_output
+$ /nix/store/dz9b5dqpvz725rj7smb4d2mwv259ah6m-ocaml-5.3.0/bin/ocamlc.opt -config > /tmp/dune_b00913_output
+$ (cd _build/default/test && ./script_cases.exe)
+> [PASS] class_basic.lox
+> [PASS] err_missing_super_method.lox
+> [PASS] err_self_inherit.lox
+> [PASS] err_super_without_parent.lox
+> [PASS] field_vs_method.lox
+> [PASS] inheritance_super.lox
+> [PASS] initializer_chain.lox
+> [PASS] print_numbers.lox
+> Script Tests Summary: total=8 pass=8 fail=0 skip=0
