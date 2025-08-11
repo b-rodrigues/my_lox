@@ -29,9 +29,8 @@ jobs:
       # Main test run using default.nix (non-flake)
       - name: Run tests (nix-shell)
         run: |
-          cd lox/
           set -euo pipefail
-          nix-shell --pure --command "dune runtest --no-buffer"
+          nix-shell --pure --command "cd lox/ && dune runtest --no-buffer"
         # If you need environment variables, add:
         # env:
         #   DUNE_CACHE: disabled
