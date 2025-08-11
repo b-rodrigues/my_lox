@@ -1,0 +1,4 @@
+fun dup(a, b) {
+  print a + b;
+}
+dup(1, a=2);

@@ -1,0 +1,8 @@
+fun outer(x) {
+  fun inner(y) {
+    return x + y;
+  }
+  return inner;
+}
+var f = outer(10);
+print f(7);

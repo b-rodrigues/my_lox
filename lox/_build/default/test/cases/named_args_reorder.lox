@@ -1,0 +1,4 @@
+fun join(a, b, c) {
+  print a + b + c;
+}
+join(c=3, a=1, b=2);

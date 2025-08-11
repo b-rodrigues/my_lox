@@ -1,0 +1,4 @@
+fun noop() {
+  //no return
+}
+print noop();

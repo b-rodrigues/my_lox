@@ -1,0 +1,4 @@
+fun mix(a, b) {
+  print a + b;
+}
+mix(3, b=4);
