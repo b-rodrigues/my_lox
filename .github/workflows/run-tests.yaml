@@ -26,42 +26,15 @@ jobs:
           extra-conf: |
             experimental-features = nix-command flakes
 
-      # If you publish a binary cache (e.g. Cachix), add it here.
-      # - name: Use Cachix
-      #   uses: cachix/cachix-action@v15
-      #   with:
-      #     name: yourcache
-      #     authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
-
-      # Optional: cache Dune _build (safe but not mandatory).
-      - name: Cache Dune build dir
-        uses: actions/cache@v4
-        with:
-            path: _build
-            key: dune-${{ runner.os }}-${{ hashFiles('dune-project', 'dune-workspace*', '**/*.ml', '**/*.mli') }}-${{ hashFiles('default.nix', 'shell.nix') }}
-            restore-keys: |
-              dune-${{ runner.os }}-
-
-      - name: Show Nix versions
-        run: |
-          nix --version
-          echo "System: $(uname -a)"
-
       # Main test run using default.nix (non-flake)
       - name: Run tests (nix-shell)
         run: |
+          cd lox/
           set -euo pipefail
           nix-shell --pure --command "dune runtest --no-buffer"
         # If you need environment variables, add:
         # env:
         #   DUNE_CACHE: disabled
-
-      # If you later adopt flakes, replace the step above with:
-      # - name: Run tests (flake)
-      #   run: |
-      #     set -euo pipefail
-      #     nix develop --command dune runtest --no-buffer
-      #   # or: nix develop .#devShell --command dune runtest
 
       - name: Print artifact summary
         if: always()
