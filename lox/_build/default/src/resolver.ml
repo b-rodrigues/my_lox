@@ -78,8 +78,8 @@ and resolve_stmt r = function
   | Fun (name, params, body) ->
       declare r name 0;
       define r name;
-      resolve_function r ~kind:FT_function ~params ~body (fun body' ->
-        Fun (name, params, body'))
+      let body' = resolve_function_body r ~kind:FT_function ~params ~body in
+      Fun (name, params, body')
   | Class (name, superclass_opt, methods) ->
       (* Declare & define class name so methods can reference it *)
       declare r name 0;
@@ -159,16 +159,16 @@ and resolve_stmt r = function
       let expr_opt' = Option.map (resolve_expr r) expr_opt in
       Return (tok, expr_opt')
 
-and resolve_function r ~kind ~params ~body k =
+and resolve_function_body r ~kind ~params ~body =
   let enclosing_fn = r.current_function in
   r.current_function <- kind;
-  (* For normal functions we have only one scope for params (no 'this', 'super') *)
+  (* For normal functions/lambdas we have only one scope for params (no 'this', 'super') *)
   push_scope r;
   List.iter (fun p -> declare r p 0; define r p) params;
   let body' = resolve_stmts r body in
   pop_scope r;
   r.current_function <- enclosing_fn;
-  k body'
+  body'
 
 and resolve_expr r = function
   | Literal _ as e -> e
@@ -214,6 +214,9 @@ and resolve_expr r = function
       let value' = resolve_expr r value in
       let depth_opt = resolve_local r name in
       Assign (name, value', depth_opt, line)
+  | Lambda (params, body, line) ->
+      let body' = resolve_function_body r ~kind:FT_function ~params ~body in
+      Lambda (params, body', line)
 
 and resolve_local r name : int option =
   let rec find scopes idx =

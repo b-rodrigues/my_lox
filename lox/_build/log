@@ -13,7 +13,7 @@
 #  ; build_dir = In_build_dir "default"
 #  ; instrument_with = []
 #  }
-$ /nix/store/dz9b5dqpvz725rj7smb4d2mwv259ah6m-ocaml-5.3.0/bin/ocamlc.opt -config > /tmp/dune_46e69b_output
+$ /nix/store/dz9b5dqpvz725rj7smb4d2mwv259ah6m-ocaml-5.3.0/bin/ocamlc.opt -config > /tmp/dune_d74664_output
 $ (cd _build/default/test && ./script_cases.exe)
 > [PASS] class_basic.lox
 > [PASS] err_missing_super_method.lox
@@ -27,8 +27,12 @@ $ (cd _build/default/test && ./script_cases.exe)
 > [PASS] higher_order_make_adder.lox
 > [PASS] inheritance_super.lox
 > [PASS] initializer_chain.lox
+> [PASS] lambda_basic.lox
+> [PASS] lambda_closure.lox
+> [PASS] lambda_immediate_call.lox
+> [PASS] lambda_nested.lox
 > [PASS] named_args_basic.lox
 > [PASS] named_args_duplicate.lox
 > [PASS] named_args_reorder.lox
 > [PASS] print_numbers.lox
-> Script Tests Summary: total=16 pass=16 fail=0 skip=0
+> Script Tests Summary: total=20 pass=20 fail=0 skip=0

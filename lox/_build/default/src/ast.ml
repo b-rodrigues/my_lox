@@ -1,8 +1,4 @@
-type call_arg =
-  | Arg_pos of expr
-  | Arg_named of string * expr * int  (* name, value, line *)
-
-and expr =
+type expr =
   | Binary of expr * Token.token * expr
   | Grouping of expr
   | Literal of Token.literal
@@ -13,9 +9,10 @@ and expr =
   | Get of expr * string * int                           (* object, property name, line *)
   | Set of expr * string * expr * int                    (* object, property name, value, line *)
   | Super of Token.token * string * int * int option     (* 'super' token, method name, line, resolved depth of 'super' binding *)
+  | Lambda of string list * stmt list * int              (* params, body, line *)
 [@@deriving show]
 
-type stmt =
+and stmt =
   | Expression of expr
   | Print of expr
   | Var of string * expr option
@@ -26,4 +23,9 @@ type stmt =
   | Class of string * expr option * (string * string list * stmt list) list
       (* name, optional superclass expression (Variable), methods *)
   | Return of Token.token * expr option
+[@@deriving show]
+
+and call_arg =
+  | Arg_pos of expr
+  | Arg_named of string * expr * int  (* name, value, line *)
 [@@deriving show]

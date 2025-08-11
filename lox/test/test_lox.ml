@@ -110,6 +110,7 @@ let token_type_to_string t =
     | LESS_EQUAL -> "LESS_EQUAL"
     | IDENTIFIER -> "IDENTIFIER"
     | STRING -> "STRING"
+    | BACKSLASH -> "BACKSLASH"
     | NUMBER -> "NUMBER"
     | AND -> "AND"
     | CLASS -> "CLASS"

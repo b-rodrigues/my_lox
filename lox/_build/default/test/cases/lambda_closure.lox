@@ -1,0 +1,8 @@
+fun make() {
+  var n = 0;
+  return \() { n = n + 1; return n; };
+}
+var c = make();
+print c();
+print c();
+print c();

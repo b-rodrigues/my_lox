@@ -1,0 +1,5 @@
+var addN = \(n) {
+  return \(x) { return x + n; };
+};
+var add5 = addN(5);
+print add5(10);

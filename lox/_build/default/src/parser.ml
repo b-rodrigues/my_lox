@@ -445,6 +445,41 @@ and primary parser =
     let (parser, expr) = expression parser in
     let (parser, _) = consume parser RIGHT_PAREN "Expect ')' after expression." in
     (parser, Grouping expr)
+  else if match_tokens parser [BACKSLASH] then
+    (* Lambda expression: backslash followed by '(', params, ')', then a '{...}' block *)
+    let parser = advance parser in
+    let line = (previous parser).line in
+    let (parser, _) = consume parser LEFT_PAREN "Expect '(' after '\\' in lambda." in
+    let (parser, params) =
+      if check parser RIGHT_PAREN then
+        let parser = advance parser in
+        (parser, [])
+      else
+        let rec loop p acc =
+          let (p, tok) = consume p IDENTIFIER "Expect parameter name." in
+          let acc = tok.lexeme :: acc in
+          if check p COMMA then
+            loop (advance p) acc
+          else if check p RIGHT_PAREN then
+            let p = advance p in
+            (p, List.rev acc)
+          else
+            let t = peek p in
+            raise (ParseError ("Expect ',' or ')' after parameter.", t.line))
+        in
+        loop parser []
+    in
+    let (parser, body_stmts) =
+      if check parser LEFT_BRACE then
+        let (p, blk) = block (advance parser) in
+        match blk with
+        | Block stmts -> (p, stmts)
+        | _ -> failwith "block did not return Block"
+      else
+        let t = peek parser in
+        raise (ParseError ("Expect '{' to start lambda body.", t.line))
+    in
+    (parser, Lambda (params, body_stmts, line))
   else
     let t = peek parser in
     raise (ParseError ("Expect expression.", t.line))

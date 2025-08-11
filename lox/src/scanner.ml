@@ -108,6 +108,7 @@ let scan_token s =
   | '+' -> add_token s PLUS None; Ok ()
   | ';' -> add_token s SEMICOLON None; Ok ()
   | '*' -> add_token s STAR None; Ok ()
+  | '\\' -> add_token s BACKSLASH None; Ok ()
   | '!' -> add_token s (if match_char s '=' then BANG_EQUAL else BANG) None; Ok ()
   | '=' -> add_token s (if match_char s '=' then EQUAL_EQUAL else EQUAL) None; Ok ()
   | '<' -> add_token s (if match_char s '=' then LESS_EQUAL else LESS) None; Ok ()

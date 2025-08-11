@@ -250,6 +250,8 @@ let rec evaluate env = function
        | None ->
            raise (RuntimeError (Printf.sprintf "Undefined superclass method '%s'." method_name, line))
        | Some fn -> bind_method inst fn)
+  | Lambda (params, body, _line) ->
+      Val_function { name = "lambda"; params; body; closure = env; bound_this = None }
   | Call (callee_e, paren, args) ->
       let callee = evaluate env callee_e in
       let rec collect_args lst pos named seen_named =
@@ -343,8 +345,8 @@ let rec evaluate env = function
 and execute env = function
   | Expression e -> ignore (evaluate env e)
   | Print e ->
-      let v = evaluate env e in
-      Printf.printf "%s\n" (value_to_string v); flush stdout
+    let v = evaluate env e in
+    Printf.printf "%s\n" (value_to_string v); flush stdout
   | Var (name, init_opt) ->
       let v = match init_opt with Some e -> evaluate env e | None -> Val_nil in
       Environment.define env name v

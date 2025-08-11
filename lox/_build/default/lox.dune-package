@@ -1,0 +1,93 @@
+(lang dune 3.19)
+(name lox)
+(sections (lib .) (libexec .) (bin ../../bin))
+(files
+ (lib
+  (META
+   ast.ml
+   builtins.ml
+   dune-package
+   interpreter.ml
+   lox.a
+   lox.cma
+   lox.cmi
+   lox.cmt
+   lox.cmx
+   lox.cmxa
+   lox.ml
+   lox__Ast.cmi
+   lox__Ast.cmt
+   lox__Ast.cmx
+   lox__Builtins.cmi
+   lox__Builtins.cmt
+   lox__Builtins.cmx
+   lox__Interpreter.cmi
+   lox__Interpreter.cmt
+   lox__Interpreter.cmx
+   lox__Parser.cmi
+   lox__Parser.cmt
+   lox__Parser.cmx
+   lox__Resolver.cmi
+   lox__Resolver.cmt
+   lox__Resolver.cmx
+   lox__Scanner.cmi
+   lox__Scanner.cmt
+   lox__Scanner.cmx
+   lox__Token.cmi
+   lox__Token.cmt
+   lox__Token.cmx
+   opam
+   parser.ml
+   resolver.ml
+   scanner.ml
+   token.ml))
+ (libexec (lox.cmxs))
+ (bin (lox)))
+(library
+ (name lox)
+ (kind normal)
+ (archives (byte lox.cma) (native lox.cmxa))
+ (plugins (byte lox.cma) (native lox.cmxs))
+ (native_archives lox.a)
+ (requires unix ppx_deriving.runtime)
+ (main_module_name Lox)
+ (modes byte native)
+ (modules
+  (wrapped
+   (group
+    (alias
+     (obj_name lox)
+     (visibility public)
+     (kind alias)
+     (source (path Lox) (impl (path lox.ml-gen))))
+    (name Lox)
+    (modules
+     (module
+      (obj_name lox__Ast)
+      (visibility public)
+      (source (path Ast) (impl (path ast.ml))))
+     (module
+      (obj_name lox__Builtins)
+      (visibility public)
+      (source (path Builtins) (impl (path builtins.ml))))
+     (module
+      (obj_name lox__Interpreter)
+      (visibility public)
+      (source (path Interpreter) (impl (path interpreter.ml))))
+     (module
+      (obj_name lox__Parser)
+      (visibility public)
+      (source (path Parser) (impl (path parser.ml))))
+     (module
+      (obj_name lox__Resolver)
+      (visibility public)
+      (source (path Resolver) (impl (path resolver.ml))))
+     (module
+      (obj_name lox__Scanner)
+      (visibility public)
+      (source (path Scanner) (impl (path scanner.ml))))
+     (module
+      (obj_name lox__Token)
+      (visibility public)
+      (source (path Token) (impl (path token.ml))))))
+   (wrapped true))))
